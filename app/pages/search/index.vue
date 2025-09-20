@@ -216,7 +216,12 @@ const performSearch = async (page: number = 1) => {
   const startIndex = (page - 1) * 10 + 1;
 
   try {
-    rawResults.value = await $googleSearch.fetchResults(searchQuery.value, startIndex, searchType.value);
+    const results = await $googleSearch.fetchResults(searchQuery.value, startIndex, searchType.value);
+    if (results.success){
+      rawResults.value =  results
+    }else {
+      error.value = results.error;
+    }
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'An unknown error occurred';
     rawResults.value = null; // Clear old results on error

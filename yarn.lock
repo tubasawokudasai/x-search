@@ -1425,6 +1425,13 @@
   resolved "https://registry.npmmirror.com/@types/estree/-/estree-1.0.8.tgz#958b91c991b1867ced318bedea0e215ee050726e"
   integrity sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==
 
+"@types/node@^24.5.2":
+  version "24.5.2"
+  resolved "https://registry.npmmirror.com/@types/node/-/node-24.5.2.tgz#52ceb83f50fe0fcfdfbd2a9fab6db2e9e7ef6446"
+  integrity sha512-FYxk1I7wPv3K2XBaoyH2cTnocQEu8AOZ60hPbsyukMPLv5/5qr7V1i8PLHdl6Zf87I+xZXFvPCXYjiTFq+YSDQ==
+  dependencies:
+    undici-types "~7.12.0"
+
 "@types/parse-path@^7.0.0":
   version "7.1.0"
   resolved "https://registry.npmmirror.com/@types/parse-path/-/parse-path-7.1.0.tgz#1bdddfe4fb2038e76c7e622234a97d6a050a1be3"
@@ -4638,6 +4645,11 @@ unctx@^2.4.1:
     estree-walker "^3.0.3"
     magic-string "^0.30.17"
     unplugin "^2.1.0"
+
+undici-types@~7.12.0:
+  version "7.12.0"
+  resolved "https://registry.npmmirror.com/undici-types/-/undici-types-7.12.0.tgz#15c5c7475c2a3ba30659529f5cdb4674b622fafb"
+  integrity sha512-goOacqME2GYyOZZfb5Lgtu+1IDmAlAEu5xnD3+xTzS10hT0vzpf0SPjkXwAw9Jm+4n/mQGDP3LO8CPbYROeBfQ==
 
 unenv@^2.0.0-rc.21:
   version "2.0.0-rc.21"

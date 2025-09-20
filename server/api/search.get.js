@@ -11,7 +11,12 @@ export default defineEventHandler(async (event) => {
 
         // 2. 从Nuxt配置中读取Google密钥（隐藏在服务端，不暴露给前端）
         const runtimeConfig = useRuntimeConfig();
-        const googleApiKey = runtimeConfig.googleApiKey;
+        const apiKey = runtimeConfig.googleApiKey.split(',');
+        if (!apiKey || !apiKey.length){
+            throw createError({ statusCode: 500, statusMessage: '服务器未配置Google API密钥' });
+        }
+        const randomIndex = Math.floor(Math.random() * apiKey.length);
+        const googleApiKey = apiKey[randomIndex];
         const searchEngineId = runtimeConfig.searchEngineId;
 
         if (!googleApiKey || !searchEngineId) {
