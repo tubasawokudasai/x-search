@@ -53,10 +53,36 @@ GOOGLE_CSE_ID=your_search_engine_id_here
 
 ## 项目结构
 
-- `/app/pages/index/index.vue` - 首页搜索输入页面
-- `/app/pages/search/index.vue` - 搜索结果页面
-- `/app/plugins/google-cse.client.js` - Google 自定义搜索插件
-- `/server/api/search.get.ts` - 搜索请求的服务器API端点
+```
+.
+├── app/                          # 应用程序目录
+│   ├── app.vue                  # 应用程序根组件
+│   ├── pages/                   # 页面组件
+│   │   ├── index/
+│   │   │   └── index.vue       # 首页搜索输入页面
+│   │   └── search/
+│   │       └── index.vue       # 搜索结果页面
+│   ├── plugins/                
+│   │   └── google-cse.client.js # Google 自定义搜索插件
+│   └── assets/                 
+│       └── css/
+│           └── main.css        # 主样式文件
+├── server/                     
+│   └── api/
+│       └── search.get.js       # 搜索请求的服务器API端点
+├── public/                     # 静态资源目录
+│   ├── favicon.ico
+│   └── robots.txt
+├── conf/                       # 配置文件目录
+│   └── nginx.conf             # Nginx 配置文件
+├── Dockerfile                 # Docker 构建文件
+├── nuxt.config.ts             # Nuxt 配置文件
+├── package.json               # 项目依赖和脚本
+├── tsconfig.json              # TypeScript 配置文件
+├── .env                       # 环境变量文件
+├── .gitignore                 # Git 忽略文件
+└── yarn.lock                  # Yarn 锁文件
+```
 
 ## 依赖项
 
