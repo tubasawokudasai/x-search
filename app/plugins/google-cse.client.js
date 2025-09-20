@@ -27,9 +27,27 @@ export default defineNuxtPlugin((nuxtApp) => {
         }
     }
 
+    // 定义搜索建议函数
+    async function fetchSuggestions(query) {
+        try {
+            const url = new URL('/api/suggest', window.location.origin);
+            url.searchParams.append('q', query);
+
+            const response = await fetch(url.toString());
+            if (!response.ok) {
+                throw new Error('获取搜索建议失败');
+            }
+            return await response.json();
+        } catch (error) {
+            console.error('搜索建议错误:', error);
+            return [];
+        }
+    }
+
     // 注册服务
     nuxtApp.provide('googleSearch', {
-        fetchResults: fetchSearchResults
+        fetchResults: fetchSearchResults,
+        fetchSuggestions: fetchSuggestions
     });
 
     console.log('Google search plugin registered:', !!nuxtApp.$googleSearch);
