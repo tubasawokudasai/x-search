@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen" :class="{'dark-mode': isDarkMode && isMounted}">
+  <div class="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
     <div class="flex flex-col items-center justify-center h-[80vh] px-4">
       <div class="mb-8">
         <h1 class="text-6xl sm:text-7xl md:text-8xl font-light text-gray-800 tracking-wide dark:text-white">xSearch</h1>
@@ -21,7 +21,7 @@
 
         <ul
             v-if="showSuggestions && suggestions.length > 0"
-            class="absolute z-10 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 dark:bg-gray-800 dark:border-gray-600"
+            class="absolute z-10 w-full bg-white border border-gray-300 rounded-lg shadow-lg mt-1 dark:bg-gray-950 dark:border-gray-600"
         >
           <li
               v-for="(suggestion, index) in suggestions"
@@ -46,8 +46,6 @@
 import {ref, onMounted} from 'vue';
 import {useNuxtApp, navigateTo} from 'nuxt/app';
 
-const isDarkMode = ref(false);
-const isMounted = ref(false);
 const searchQuery = ref('');
 const searchError = ref('');
 const nuxtApp = useNuxtApp();
@@ -101,13 +99,6 @@ const selectSuggestion = (suggestion) => {
   handleSearch();
 };
 
-onMounted(() => {
-  isMounted.value = true;
-  // 检查深色模式
-  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches) {
-    isDarkMode.value = true;
-  }
-});
 </script>
 
 <style scoped>

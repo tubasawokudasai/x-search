@@ -1,18 +1,21 @@
 <template>
-  <div class="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" :class="{'dark': isDarkMode}">
+  <div class="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
     <div
-        class="border-b border-gray-200 dark:border-gray-700 px-6 py-4 sticky top-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10">
+        class="border-b border-gray-200 dark: px-6 py-4 sticky top-0 bg-white/80 dark:bg-gray-950/80 backdrop-blur-sm z-10">
       <div class="flex flex-col sm:flex-row items-center max-w-7xl mx-auto">
         <div class="mb-4 sm:mb-0 sm:mr-8 text-center sm:text-left">
-          <h1 class="text-xl sm:text-2xl font-light text-gray-800 dark:text-white tracking-wide cursor-pointer" @click="goHome">
+          <h1 class="text-xl sm:text-2xl font-light text-gray-800 dark:text-white tracking-wide cursor-pointer"
+              @click="goHome">
             xSearch
           </h1>
         </div>
         <div class="relative w-full sm:flex-1 max-w-2xl">
           <div class="relative">
             <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 dark:text-gray-500" fill="none"
+                   viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
               </svg>
             </div>
             <input
@@ -25,13 +28,16 @@
                 placeholder="Search with xSearch"
             />
             <div v-if="showSuggestions && suggestions.length > 0"
-                 class="absolute left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
+                 class="absolute left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark: rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
               <ul>
                 <li v-for="(suggestion, index) in suggestions" :key="index"
                     @mousedown.prevent="selectSuggestion(suggestion)"
                     class="px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 dark:text-gray-500 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                  <svg xmlns="http://www.w3.org/2000/svg"
+                       class="h-4 w-4 text-gray-400 dark:text-gray-500 mr-3 flex-shrink-0" fill="none"
+                       viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
                   </svg>
                   <span class="truncate">{{ suggestion }}</span>
                 </li>
@@ -66,14 +72,14 @@
         </div>
 
         <div v-if="spellingSuggestion"
-             class="text-sm text-gray-700 dark:text-gray-300 mb-4 p-3 bg-blue-50 dark:bg-gray-800 rounded-lg">
+             class="text-sm text-gray-700 dark:text-gray-300 mb-4 p-3 bg-blue-50 dark:bg-gray-950 rounded-lg">
           <p>Did you mean: <a
               @click.prevent="searchWithSuggestion(spellingSuggestion)"
               class="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-semibold"
           >{{ spellingSuggestion }}</a></p>
         </div>
 
-        <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
+        <div class="border-b border-gray-200 dark: mb-6">
           <div class="flex justify-between items-center">
             <nav class="-mb-px flex space-x-6" aria-label="Tabs">
               <button @click="changeSearchType('web')"
@@ -95,8 +101,11 @@
                   {{ option.text }}
                 </option>
               </select>
-              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500 dark:text-gray-400">
-                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+              <div
+                  class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500 dark:text-gray-400">
+                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                </svg>
               </div>
             </div>
           </div>
@@ -129,7 +138,7 @@
               <img :src="result.link" :alt="result.title"
                    class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"/>
               <div
-                  class="absolute inset-0 bg-black bg-opacity-40 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                  class="absolute inset-0 bg-gray-900 bg-opacity-40 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               <div
                   class="absolute bottom-0 left-0 p-2 w-full text-white text-xs bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                 <p class="truncate" v-html="highlightText(result.title, searchQuery)"></p>
@@ -170,7 +179,8 @@
           <button @click="loadMore"
                   class="flex items-center px-4 py-2 border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 rounded-full hover:bg-blue-600 hover:text-white transition-colors">
             <span>More Results</span>
-            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                 xmlns="http://www.w3.org/2000/svg">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
             </svg>
           </button>
@@ -224,7 +234,6 @@ const router = useRouter();
 const {$googleSearch} = useNuxtApp();
 
 // --- STATE MANAGEMENT ---
-const isDarkMode = ref(false);
 const searchQuery = ref(route.query.q as string || '');
 const searchType = ref<'web' | 'image'>(route.query.type as 'web' | 'image' || 'web');
 const currentPage = ref(parseInt(route.query.page as string) || 1);
@@ -242,8 +251,8 @@ const showSuggestions = ref(false);
 // New state for sorting
 const sortOrder = ref<'relevance' | 'date'>('relevance');
 const sortOptions = [
-  { text: 'Relevance', value: 'relevance' },
-  { text: 'Date', value: 'date' },
+  {text: 'Relevance', value: 'relevance'},
+  {text: 'Date', value: 'date'},
 ];
 
 // --- SEARCH & DATA FETCHING ---
@@ -266,7 +275,7 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
 
   try {
     const results = await $googleSearch.fetchResults(searchQuery.value, startIndex, searchType.value);
-    if (results.success){
+    if (results.success) {
       if (isNewSearch) {
         searchResults.value = results.data.items;
       } else {
@@ -277,7 +286,7 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
       if (isNewSearch) {
         sortOrder.value = 'relevance';
       }
-    }else {
+    } else {
       error.value = results.error;
     }
   } catch (err) {
@@ -406,15 +415,6 @@ onMounted(() => {
     performSearch(currentPage.value, false);
   } else {
     router.push('/');
-  }
-
-  // Dark mode detection
-  if (typeof window !== 'undefined' && window.matchMedia) {
-    const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    isDarkMode.value = darkModeMediaQuery.matches;
-    darkModeMediaQuery.addEventListener('change', (e) => {
-      isDarkMode.value = e.matches;
-    });
   }
 });
 
