@@ -1,58 +1,70 @@
 <template>
   <div class="min-h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" :class="{'dark': isDarkMode}">
-    <!-- Header with Search Bar -->
     <div
         class="border-b border-gray-200 dark:border-gray-700 px-6 py-4 sticky top-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm z-10">
-      <div class="flex items-center max-w-7xl mx-auto">
-        <div class="mr-8">
-          <h1 class="text-2xl font-light text-gray-800 dark:text-white tracking-wide cursor-pointer" @click="goHome">
+      <div class="flex flex-col sm:flex-row items-center max-w-7xl mx-auto">
+        <div class="mb-4 sm:mb-0 sm:mr-8 text-center sm:text-left">
+          <h1 class="text-xl sm:text-2xl font-light text-gray-800 dark:text-white tracking-wide cursor-pointer" @click="goHome">
             xSearch
           </h1>
         </div>
-        <div class="relative flex-1 max-w-2xl">
+        <div class="relative w-full sm:flex-1 max-w-2xl">
           <div class="relative">
+            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+              </svg>
+            </div>
             <input
                 v-model="searchQuery"
                 type="text"
                 class="w-full h-12 pl-12 pr-4 text-base border border-gray-300 dark:border-gray-600 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:shadow-md"
-                @keyup.enter="performSearch(1)"
+                @keyup.enter="performSearch(1, true)"
+                @input="handleInput"
+                @blur="showSuggestions = false"
                 placeholder="Search with xSearch"
             />
+            <div v-if="showSuggestions && suggestions.length > 0"
+                 class="absolute left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
+              <ul>
+                <li v-for="(suggestion, index) in suggestions" :key="index"
+                    @mousedown.prevent="selectSuggestion(suggestion)"
+                    class="px-4 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-400 dark:text-gray-500 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                  </svg>
+                  <span class="truncate">{{ suggestion }}</span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Main Content Area -->
     <div class="max-w-4xl mx-auto px-6 py-8">
-      <!-- Loading State -->
       <div v-if="isLoading" class="text-center py-10">
         <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
         <p>Loading...</p>
       </div>
 
-      <!-- Error State -->
       <div v-else-if="error"
            class="text-center text-red-500 bg-red-100 dark:bg-red-900/30 dark:text-red-300 p-4 rounded-lg">
         <p>Failed to get search results: {{ error }}</p>
-        <button @click="performSearch(currentPage)"
+        <button @click="performSearch(currentPage, false)"
                 class="mt-2 text-sm bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors">
           Retry
         </button>
       </div>
 
-      <!-- Results Area -->
       <div v-else-if="searchQuery && rawResults">
-        <!-- Search Info & Sorting -->
         <div class="flex justify-between items-center mb-4">
           <div v-if="rawResults.data.searchInformation" class="text-sm text-gray-600 dark:text-gray-400">
             About {{ rawResults.data.searchInformation.formattedTotalResults }} results
             ({{ rawResults.data.searchInformation.formattedSearchTime }} seconds)
           </div>
-          <!-- Sorting feature can be added here if needed -->
         </div>
 
-        <!-- Spelling Suggestion -->
         <div v-if="spellingSuggestion"
              class="text-sm text-gray-700 dark:text-gray-300 mb-4 p-3 bg-blue-50 dark:bg-gray-800 rounded-lg">
           <p>Did you mean: <a
@@ -61,23 +73,37 @@
           >{{ spellingSuggestion }}</a></p>
         </div>
 
-        <!-- Search Type Tabs -->
         <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
-          <nav class="-mb-px flex space-x-6" aria-label="Tabs">
-            <button @click="changeSearchType('web')"
-                    :class="[searchType === 'web' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600', 'whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors']">
-              Web
-            </button>
-            <button @click="changeSearchType('image')"
-                    :class="[searchType === 'image' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600', 'whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors']">
-              Images
-            </button>
-          </nav>
+          <div class="flex justify-between items-center">
+            <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+              <button @click="changeSearchType('web')"
+                      :class="[searchType === 'web' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600', 'whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors']">
+                Web
+              </button>
+              <button @click="changeSearchType('image')"
+                      :class="[searchType === 'image' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600', 'whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors']">
+                Images
+              </button>
+            </nav>
+            <div v-if="searchType === 'web' && searchResults.length > 0" class="relative">
+              <select
+                  :value="sortOrder"
+                  @change="changeSort(($event.target as HTMLSelectElement).value)"
+                  class="appearance-none bg-white dark:bg-gray-800 border-none text-gray-600 dark:text-gray-400 py-1 pl-3 pr-8 rounded-md leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <option v-for="option in sortOptions" :key="option.value" :value="option.value">
+                  {{ option.text }}
+                </option>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500 dark:text-gray-400">
+                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Web Results -->
-        <div v-if="searchType === 'web' && searchResults.length > 0" class="space-y-8">
-          <div v-for="(result, index) in searchResults" :key="index" class="group">
+        <div v-if="searchType === 'web' && sortedResults.length > 0" class="space-y-8">
+          <div v-for="(result, index) in sortedResults" :key="index" class="group">
             <a :href="result.link" target="_blank" rel="noopener noreferrer">
               <h3 class="text-xl text-blue-600 dark:text-blue-400 group-hover:underline truncate"
                   v-html="highlightText(result.title, searchQuery)"></h3>
@@ -95,7 +121,6 @@
           </div>
         </div>
 
-        <!-- Image Results -->
         <div v-else-if="searchType === 'image' && searchResults.length > 0"
              class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
           <div v-for="(result, index) in searchResults" :key="index"
@@ -114,7 +139,6 @@
           </div>
         </div>
 
-        <!-- No Results Found -->
         <div v-else class="text-center text-gray-500 dark:text-gray-400 pt-10">
           <p>No results found for "<strong>{{ searchQuery }}</strong>".</p>
           <ul class="mt-2 text-sm list-disc list-inside">
@@ -124,8 +148,7 @@
           </ul>
         </div>
 
-        <!-- Pagination -->
-        <div v-if="totalPages > 1 && searchResults.length > 0" class="flex justify-center mt-12">
+        <div v-if="totalPages > 1 && searchResults.length > 0" class="flex justify-center mt-12 hidden sm:flex">
           <nav class="flex items-center space-x-2">
             <button @click="goToPage(currentPage - 1)" :disabled="currentPage === 1"
                     class="px-3 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
@@ -141,6 +164,16 @@
               Next
             </button>
           </nav>
+        </div>
+
+        <div v-if="totalPages > currentPage && searchResults.length > 0" class="flex sm:hidden justify-center mt-8">
+          <button @click="loadMore"
+                  class="flex items-center px-4 py-2 border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 rounded-full hover:bg-blue-600 hover:text-white transition-colors">
+            <span>More Results</span>
+            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+            </svg>
+          </button>
         </div>
 
       </div>
@@ -199,49 +232,137 @@ const isLoading = ref(false);
 const error = ref<string | null>(null);
 
 const rawResults = ref<Root | null>(null);
-const searchResults = computed(() => rawResults.value?.data?.items || []);
+const searchResults = ref<Item[]>([]);
 const spellingSuggestion = computed(() => rawResults.value?.data?.spelling?.correctedQuery || null);
 
+// New state for suggestions
+const suggestions = ref<string[]>([]);
+const showSuggestions = ref(false);
+
+// New state for sorting
+const sortOrder = ref<'relevance' | 'date'>('relevance');
+const sortOptions = [
+  { text: 'Relevance', value: 'relevance' },
+  { text: 'Date', value: 'date' },
+];
+
 // --- SEARCH & DATA FETCHING ---
-const performSearch = async (page: number = 1) => {
+const performSearch = async (page: number = 1, isNewSearch: boolean = false) => {
   if (!searchQuery.value) return;
 
   isLoading.value = true;
   error.value = null;
   currentPage.value = page;
 
+  // Hide suggestions when a search is performed
+  showSuggestions.value = false;
+
   // Update URL query parameters
-  router.push({query: {q: searchQuery.value, type: searchType.value, page: currentPage.value.toString()}});
+  if (isNewSearch) {
+    router.push({query: {q: searchQuery.value, type: searchType.value, page: currentPage.value.toString()}});
+  }
 
   const startIndex = (page - 1) * 10 + 1;
 
   try {
     const results = await $googleSearch.fetchResults(searchQuery.value, startIndex, searchType.value);
     if (results.success){
-      rawResults.value =  results
+      if (isNewSearch) {
+        searchResults.value = results.data.items;
+      } else {
+        searchResults.value = [...searchResults.value, ...results.data.items];
+      }
+      rawResults.value = results;
+      // Reset sort order to relevance on a new search
+      if (isNewSearch) {
+        sortOrder.value = 'relevance';
+      }
     }else {
       error.value = results.error;
     }
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'An unknown error occurred';
     rawResults.value = null; // Clear old results on error
+    searchResults.value = [];
   } finally {
     isLoading.value = false;
-    window.scrollTo(0, 0); // Scroll to top after loading
+    if (isNewSearch) {
+      window.scrollTo(0, 0); // Scroll to top for new searches
+    }
   }
+};
+
+const handleInput = async () => {
+  // Only request suggestions if the search query is not empty
+  if (searchQuery.value.trim().length > 0) {
+    try {
+      const data = await $googleSearch.fetchSuggestions(searchQuery.value);
+      if (data.success) {
+        suggestions.value = data.data;
+        showSuggestions.value = true;
+      } else {
+        suggestions.value = [];
+        showSuggestions.value = false;
+      }
+    } catch (error) {
+      console.error('获取建议失败:', error);
+      suggestions.value = [];
+      showSuggestions.value = false;
+    }
+  } else {
+    suggestions.value = [];
+    showSuggestions.value = false;
+  }
+};
+
+const selectSuggestion = (suggestion: string) => {
+  searchQuery.value = suggestion;
+  performSearch(1, true);
 };
 
 const searchWithSuggestion = (suggestion: string) => {
   searchQuery.value = suggestion;
-  performSearch(1);
+  performSearch(1, true);
 }
 
 const changeSearchType = (type: 'web' | 'image') => {
   if (searchType.value !== type) {
     searchType.value = type;
-    performSearch(1);
+    performSearch(1, true);
   }
 };
+
+const loadMore = () => {
+  if (currentPage.value < totalPages.value) {
+    performSearch(currentPage.value + 1, false);
+  }
+};
+
+
+// --- SORTING LOGIC ---
+const changeSort = (newSortOrder: string) => {
+  if (newSortOrder === 'relevance' || newSortOrder === 'date') {
+    sortOrder.value = newSortOrder;
+  }
+};
+
+const sortedResults = computed(() => {
+  if (sortOrder.value === 'date') {
+    // NOTE: The Google Custom Search API results do not contain a date field,
+    // so this sorting is purely for demonstration and will not have a real effect
+    // unless you modify the API to include date information.
+    // For now, this is a placeholder. In a real-world scenario, you would
+    // sort based on a `datePublished` field in the API response.
+    return [...searchResults.value].sort((a, b) => {
+      // Dummy date sorting logic
+      const dateA = a.title.length; // Example placeholder
+      const dateB = b.title.length; // Example placeholder
+      return dateB - dateA;
+    });
+  }
+  // Default to relevance
+  return searchResults.value;
+});
 
 // --- PAGINATION ---
 const totalPages = computed(() => {
@@ -263,7 +384,7 @@ const paginationPages = computed(() => {
 
 const goToPage = (page: number) => {
   if (page >= 1 && page <= totalPages.value && page !== currentPage.value) {
-    performSearch(page);
+    performSearch(page, true);
   }
 };
 
@@ -282,7 +403,7 @@ const highlightText = (text: string, query: string) => {
 onMounted(() => {
   // Initial search if query exists in URL
   if (searchQuery.value) {
-    performSearch(currentPage.value);
+    performSearch(currentPage.value, false);
   } else {
     router.push('/');
   }
@@ -307,7 +428,7 @@ watch(() => route.query, (newQuery) => {
     searchQuery.value = newSearchQuery;
     currentPage.value = newPage;
     searchType.value = newType;
-    performSearch(newPage);
+    performSearch(newPage, true);
   }
 });
 </script>

@@ -11,8 +11,10 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.13",
+    "got": "^14.4.9",
     "h3": "^1.15.4",
     "iconv-lite": "^0.7.0",
+    "node-cache": "^5.1.2",
     "nuxt": "^4.1.2",
     "tailwindcss": "^4.1.13",
     "vue": "^3.5.21",
