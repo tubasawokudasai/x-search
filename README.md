@@ -44,11 +44,11 @@ yarn preview
 
 ## 环境配置
 
-在项目根目录创建 `.env` 文件，添加你的 Google 自定义搜索引擎凭证：
+在项目根目录创建 `.env` 文件，添加你的 Google 自定义搜索引擎凭证,支持多个apikey,使用逗号分隔：
 
 ```
-GOOGLE_CSE_API_KEY=your_api_key_here
-GOOGLE_CSE_ID=your_search_engine_id_here
+NUXT_PUBLIC_GOOGLE_API_KEY=your_api_key_here
+NUXT_PUBLIC_SEARCH_ENGINE_ID=your_search_engine_id_here
 ```
 
 ## 项目结构
