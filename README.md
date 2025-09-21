@@ -12,13 +12,17 @@
 - 响应式设计
 - 搜索类型切换（网页/图片）
 
-## 安装设置
+-----
 
-确保安装了项目依赖：
+## 安装与设置
+
+确保已安装项目依赖：
 
 ```bash
 yarn install
 ```
+
+-----
 
 ## 开发服务器
 
@@ -27,6 +31,8 @@ yarn install
 ```bash
 yarn dev
 ```
+
+-----
 
 ## 生产构建
 
@@ -42,14 +48,28 @@ yarn build
 yarn preview
 ```
 
+-----
+
+## 部署
+
+使用 Docker 快速部署应用，命令如下：
+
+```bash
+docker run -d -p 3000:3000 --name x-search registry.cn-hangzhou.aliyuncs.com/openstackwang/x-search-app:latest
+```
+
+-----
+
 ## 环境配置
 
-在项目根目录创建 `.env` 文件，添加你的 Google 自定义搜索引擎凭证,支持多个apikey,使用逗号分隔：
+在项目根目录创建 `.env` 文件，添加你的 Google 自定义搜索引擎凭证。支持使用逗号分隔的多个 API 密钥：
 
 ```
 NUXT_PUBLIC_GOOGLE_API_KEY=your_api_key_here
 NUXT_PUBLIC_SEARCH_ENGINE_ID=your_search_engine_id_here
 ```
+
+-----
 
 ## 项目结构
 
@@ -84,10 +104,12 @@ NUXT_PUBLIC_SEARCH_ENGINE_ID=your_search_engine_id_here
 └── yarn.lock                  # Yarn 锁文件
 ```
 
+-----
+
 ## 依赖项
 
 - Nuxt 3
 - Tailwind CSS
 - Vue 3
 
-有关工作原理的详细说明，请查看 [Nuxt 文档](https://nuxt.com/docs/getting-started/introduction)。
+有关工作原理的详细说明，请查看 [Programmable Search Engine](https://developers.google.com/custom-search/v1/overview?hl=zh-cn)。
