@@ -10,7 +10,7 @@ export default defineNuxtPlugin((nuxtApp) => {
         try {
             const url = new URL('/api/search', window.location.origin);
             url.searchParams.append('q', query);
-            url.searchParams.append('start', startIndex.toString());
+            url.searchParams.append('startIndex', startIndex.toString());
             url.searchParams.append('type', searchType);
 
             const response = await fetch(url.toString());

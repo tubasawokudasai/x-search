@@ -1,7 +1,7 @@
 <template>
   <div class="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
     <div
-        class="border-b border-gray-200 dark: px-6 py-4 sticky top-0 bg-white/80 dark:bg-gray-950/80 backdrop-blur-sm z-10">
+        class="border-b border-gray-200 dark:border-gray-800 px-6 py-4 sticky top-0 bg-white/80 dark:bg-gray-950/80 backdrop-blur-sm z-10">
       <div class="flex flex-col sm:flex-row items-center max-w-7xl mx-auto">
         <div class="mb-4 sm:mb-0 sm:mr-8 text-center sm:text-left">
           <h1 class="text-xl sm:text-2xl font-light text-gray-800 dark:text-white tracking-wide cursor-pointer"
@@ -28,7 +28,7 @@
                 placeholder="Search with xSearch"
             />
             <div v-if="showSuggestions && suggestions.length > 0"
-                 class="absolute left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark: rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
+                 class="absolute left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
               <ul>
                 <li v-for="(suggestion, index) in suggestions" :key="index"
                     @mousedown.prevent="selectSuggestion(suggestion)"
@@ -79,7 +79,7 @@
           >{{ spellingSuggestion }}</a></p>
         </div>
 
-        <div class="border-b border-gray-200 dark: mb-6">
+        <div class="border-b border-gray-200 dark:border-gray-800 mb-6">
           <div class="flex justify-between items-center">
             <nav class="-mb-px flex space-x-6" aria-label="Tabs">
               <button @click="changeSearchType('web')"
@@ -177,15 +177,21 @@
 
         <div v-if="totalPages > currentPage && searchResults.length > 0" class="flex sm:hidden justify-center mt-8">
           <button @click="loadMore"
-                  class="flex items-center px-4 py-2 border border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 rounded-full hover:bg-blue-600 hover:text-white transition-colors">
-            <span>More Results</span>
-            <svg class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  :disabled="isLoadingMore"
+                  class="flex items-center px-4 py-2 border rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  :class="{
+                    'border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white': !isLoadingMore,
+                    'border-gray-400 text-gray-400': isLoadingMore
+                  }">
+            <span v-if="!isLoadingMore">More Results</span>
+            <span v-else>Loading...</span>
+            <div v-if="isLoadingMore" class="ml-2 inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+            <svg v-else class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                  xmlns="http://www.w3.org/2000/svg">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
             </svg>
           </button>
         </div>
-
       </div>
     </div>
   </div>
@@ -255,12 +261,19 @@ const sortOptions = [
   {text: 'Date', value: 'date'},
 ];
 
+// New state for "load more" button
+const isLoadingMore = ref(false);
+
 // --- SEARCH & DATA FETCHING ---
 const performSearch = async (page: number = 1, isNewSearch: boolean = false) => {
   if (!searchQuery.value) return;
 
-  isLoading.value = true;
-  error.value = null;
+  // For a full page load, set the main loader
+  if (isNewSearch) {
+    isLoading.value = true;
+    error.value = null;
+  }
+
   currentPage.value = page;
 
   // Hide suggestions when a search is performed
@@ -295,6 +308,7 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
     searchResults.value = [];
   } finally {
     isLoading.value = false;
+    isLoadingMore.value = false; // Add this line
     if (isNewSearch) {
       window.scrollTo(0, 0); // Scroll to top for new searches
     }
@@ -342,7 +356,8 @@ const changeSearchType = (type: 'web' | 'image') => {
 };
 
 const loadMore = () => {
-  if (currentPage.value < totalPages.value) {
+  if (currentPage.value < totalPages.value && !isLoadingMore.value) {
+    isLoadingMore.value = true;
     performSearch(currentPage.value + 1, false);
   }
 };

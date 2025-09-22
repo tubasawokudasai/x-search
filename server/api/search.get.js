@@ -36,8 +36,7 @@ export default defineEventHandler(async (event) => {
         }
 
         // 2. 构造Google CSE请求URL
-        let url = `https://www.googleapis.com/customsearch/v1?key=${googleApiKey}&cx=${searchEngineId}&q=${encodeURIComponent(q.toString())}`;
-        url += `&lr=lang_zh-CN&hl=zh-CN`;
+        let url = `https://customsearch.googleapis.com/customsearch/v1?key=${googleApiKey}&cx=${searchEngineId}&q=${encodeURIComponent(q.toString())}`;
         url += startIndex ? `&start=${startIndex}` : `&start=${(page - 1) * 10 + 1}`;
 
         if (type === 'image') {
