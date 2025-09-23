@@ -65,8 +65,8 @@ docker run -d -p 3000:3000 --name x-search registry.cn-hangzhou.aliyuncs.com/ope
 在项目根目录创建 `.env` 文件，添加你的 Google 自定义搜索引擎凭证。支持使用逗号分隔的多个 API 密钥：
 
 ```
-NUXT_PUBLIC_GOOGLE_API_KEY=your_api_key_here
-NUXT_PUBLIC_SEARCH_ENGINE_ID=your_search_engine_id_here
+NUXT_GOOGLE_API_KEY=your_api_key_here
+NUXT_SEARCH_ENGINE_ID=your_search_engine_id_here
 ```
 
 -----
