@@ -16,8 +16,8 @@ export default defineNuxtConfig({
   // 移除了客户端的 script 配置
   runtimeConfig: {
     // 在服务器端使用的环境变量
-    googleApiKey: process.env.NUXT_PUBLIC_GOOGLE_API_KEY,
-    searchEngineId: process.env.NUXT_PUBLIC_SEARCH_ENGINE_ID,
+    googleApiKey: process.env.GOOGLE_API_KEY,
+    searchEngineId: process.env.SEARCH_ENGINE_ID,
     public: {
       // 客户端需要的环境变量
 
