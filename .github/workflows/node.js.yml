@@ -31,8 +31,10 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          # 使用 GitHub SHA 作为唯一标签，确保拉取最新版本
           tags: registry.cn-hangzhou.aliyuncs.com/openstackwang/x-search-app:${{ github.sha }}
+          build-args: |
+            NUXT_PUBLIC_GOOGLE_API_KEY=${{ secrets.NUXT_PUBLIC_GOOGLE_API_KEY }}
+            NUXT_PUBLIC_SEARCH_ENGINE_ID=${{ secrets.NUXT_PUBLIC_SEARCH_ENGINE_ID }}
 
       - name: Deploy to Server
         uses: appleboy/ssh-action@master
@@ -42,16 +44,16 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             echo "--- Stopping and removing old container ---"
-            # 停止并删除旧容器，|| true 确保即使容器不存在也不会报错
             docker stop x-search || true
             docker rm x-search || true
             
             echo "--- Pulling the latest image ---"
-            # 拉取刚刚推送的最新镜像
             docker pull registry.cn-hangzhou.aliyuncs.com/openstackwang/x-search-app:${{ github.sha }}
             
             echo "--- Starting new container ---"
-            # 启动新容器
-            docker run -d -p 3000:3000 --name x-search registry.cn-hangzhou.aliyuncs.com/openstackwang/x-search-app:${{ github.sha }}
+            docker run -d -p 3000:3000 --name x-search \
+              -e NUXT_PUBLIC_GOOGLE_API_KEY=${{ secrets.NUXT_PUBLIC_GOOGLE_API_KEY }} \
+              -e NUXT_PUBLIC_SEARCH_ENGINE_ID=${{ secrets.NUXT_PUBLIC_SEARCH_ENGINE_ID }} \
+              registry.cn-hangzhou.aliyuncs.com/openstackwang/x-search-app:${{ github.sha }}
             
             echo "Deployment complete."
