@@ -6,7 +6,7 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - main  # 当代码推送到 main 分支时触发
+      - main
 
 jobs:
   build-and-deploy:
@@ -32,9 +32,6 @@ jobs:
           file: ./Dockerfile
           push: true
           tags: registry.cn-hangzhou.aliyuncs.com/openstackwang/x-search-app:${{ github.sha }}
-          build-args: |
-            GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}
-            SEARCH_ENGINE_ID=${{ secrets.SEARCH_ENGINE_ID }}
 
       - name: Deploy to Server
         uses: appleboy/ssh-action@master
@@ -52,8 +49,8 @@ jobs:
             
             echo "--- Starting new container ---"
             docker run -d -p 3000:3000 --name x-search \
-              -e GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }} \
-              -e SEARCH_ENGINE_ID=${{ secrets.SEARCH_ENGINE_ID }} \
+              -e NUXT_GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }} \
+              -e NUXT_SEARCH_ENGINE_ID=${{ secrets.SEARCH_ENGINE_ID }} \
               registry.cn-hangzhou.aliyuncs.com/openstackwang/x-search-app:${{ github.sha }}
             
             echo "Deployment complete."
