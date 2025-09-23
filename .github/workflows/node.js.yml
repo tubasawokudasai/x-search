@@ -1,0 +1,57 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main  # 当代码推送到 main 分支时触发
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Aliyun Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: registry.cn-hangzhou.aliyuncs.com
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          # 使用 GitHub SHA 作为唯一标签，确保拉取最新版本
+          tags: registry.cn-hangzhou.aliyuncs.com/openstackwang/x-search-app:${{ github.sha }}
+
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ vars.SSH_HOST }}
+          username: ${{ vars.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            echo "--- Stopping and removing old container ---"
+            # 停止并删除旧容器，|| true 确保即使容器不存在也不会报错
+            docker stop x-search || true
+            docker rm x-search || true
+            
+            echo "--- Pulling the latest image ---"
+            # 拉取刚刚推送的最新镜像
+            docker pull registry.cn-hangzhou.aliyuncs.com/openstackwang/x-search-app:${{ github.sha }}
+            
+            echo "--- Starting new container ---"
+            # 启动新容器
+            docker run -d -p 3000:3000 --name x-search registry.cn-hangzhou.aliyuncs.com/openstackwang/x-search-app:${{ github.sha }}
+            
+            echo "Deployment complete."
