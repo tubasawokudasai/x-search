@@ -302,6 +302,7 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
     } else {
       error.value = results.error;
     }
+    document.title = `${searchQuery.value} - xSearch`;
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'An unknown error occurred';
     rawResults.value = null; // Clear old results on error
