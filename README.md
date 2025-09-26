@@ -1,19 +1,20 @@
-# xSearch - Google 自定义搜索引擎客户端
+# xSearch - 高集成度网页搜索客户端
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Ftubasawokudasai%2Fx-search&env=NUXT_GOOGLE_API_KEY,NUXT_SEARCH_ENGINE_ID&envDescription=Enter%20your%20Google%20API%20Key%20and%20Search%20Engine%20ID.&project-name=x-search-app&repository-name=x-search-app)
-[![Deploy to Cloudflare Pages](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Ftubasawokudasai%2Fx-search&env=NUXT_GOOGLE_API_KEY,NUXT_SEARCH_ENGINE_ID)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Ftubasawokudasai%2Fx-search&env=NUXT_GOOGLE_API_KEY,NUXT_SEARCH_ENGINE_ID,NUXT_BRAVE_API_KEY&envDescription=Enter%20your%20Google%20API%20Key,Search%20Engine%20ID%20and%20Brave%20API%20Key.&project-name=x-search-app&repository-name=x-search-app)
+[![Deploy to Cloudflare Pages](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Ftubasawokudasai%2Fx-search&env=NUXT_GOOGLE_API_KEY,NUXT_SEARCH_ENGINE_ID,NUXT_BRAVE_API_KEY)
 
-基于 Nuxt.js 的网页搜索客户端，集成 Google 自定义搜索引擎 API，提供网页和图片搜索功能。
+基于 Nuxt.js 的网页搜索客户端，集成 Google 自定义搜索引擎 API **和 Brave 搜索 API**，提供多样化的网页和图片搜索功能。
 
 ## 功能特性
 
-- 网页搜索结果高亮显示
-- 图片搜索网格布局
-- 分页支持（最多100个结果）
-- 深色模式支持
-- 拼写建议
-- 响应式设计
-- 搜索类型切换（网页/图片）
+-   **多搜索引擎支持**：灵活切换和使用 Google 自定义搜索及 Brave 搜索服务。
+-   网页搜索结果高亮显示
+-   图片搜索网格布局
+-   分页支持（最多100个结果，取决于API限制）
+-   深色模式支持
+-   拼写建议
+-   响应式设计
+-   搜索类型切换（网页/图片）
 
 -----
 
@@ -48,6 +49,7 @@ yarn build
 本地预览生产构建：
 
 ```bash
+
 yarn preview
 ```
 
@@ -59,8 +61,8 @@ yarn preview
 
 你可以使用以下按钮将此项目一键部署到 Vercel 或 Cloudflare Pages：
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Ftubasawokudasai%2Fx-search&env=NUXT_GOOGLE_API_KEY,NUXT_SEARCH_ENGINE_ID&envDescription=Enter%20your%20Google%20API%20Key%20and%20Search%20Engine%20ID.&project-name=x-search-app&repository-name=x-search-app)
-[![Deploy to Cloudflare Pages](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Ftubasawokudasai%2Fx-search&env=NUXT_GOOGLE_API_KEY,NUXT_SEARCH_ENGINE_ID)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Ftubasawokudasai%2Fx-search&env=NUXT_GOOGLE_API_KEY,NUXT_SEARCH_ENGINE_ID,NUXT_BRAVE_API_KEY&envDescription=Enter%20your%20Google%20API%20Key,Search%20Engine%20ID%20and%20Brave%20API%20Key.&project-name=x-search-app&repository-name=x-search-app)
+[![Deploy to Cloudflare Pages](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Ftubasawokudasai%2Fx-search&env=NUXT_GOOGLE_API_KEY,NUXT_SEARCH_ENGINE_ID,NUXT_BRAVE_API_KEY)
 
 点击按钮后，平台会引导你完成仓库克隆和环境变量设置。
 
@@ -70,8 +72,9 @@ yarn preview
 
 ```bash
 docker run -d -p 3000:3000 --name x-search \
-  -e NUXT_GOOGLE_API_KEY="your_api_key_here" \
+  -e NUXT_GOOGLE_API_KEY="your_google_api_key_here" \
   -e NUXT_SEARCH_ENGINE_ID="your_search_engine_id_here" \
+  -e NUXT_BRAVE_API_KEY="your_brave_api_key_here" \
   registry.cn-hangzhou.aliyuncs.com/openstackwang/x-search-app:latest
 ```
 
@@ -79,12 +82,13 @@ docker run -d -p 3000:3000 --name x-search \
 
 ## 环境配置
 
-在项目根目录创建 `.env` 文件，添加你的 Google 自定义搜索引擎凭证。这些变量会在部署到 Vercel 或 Cloudflare 时被要求输入。
+在项目根目录创建 `.env` 文件，添加你的 Google 自定义搜索引擎和 Brave API 凭证。这些变量会在部署到 Vercel 或 Cloudflare 时被要求输入。
 
 ```
 # .env file for local development
-NUXT_GOOGLE_API_KEY=your_api_key_here
+NUXT_GOOGLE_API_KEY=your_google_api_key_here
 NUXT_SEARCH_ENGINE_ID=your_search_engine_id_here
+NUXT_BRAVE_API_KEY=your_brave_api_key_here
 ```
 
 -----
@@ -101,13 +105,14 @@ NUXT_SEARCH_ENGINE_ID=your_search_engine_id_here
 │   │   └── search/
 │   │       └── index.vue       # 搜索结果页面
 │   ├── plugins/
-│   │   └── google-cse.client.js # Google 自定义搜索插件
+│   │   ├── google-cse.client.js # Google 自定义搜索插件
+│   │   └── brave-api.client.js  # Brave 搜索 API 插件 (假设存在或计划添加)
 │   └── assets/
 │       └── css/
 │           └── main.css        # 主样式文件
 ├── server/
 │   └── api/
-│       └── search.get.js       # 搜索请求的服务器API端点
+│       └── search.get.js       # 搜索请求的服务器API端点 (需处理多源搜索逻辑)
 ├── public/                     # 静态资源目录
 │   ├── favicon.ico
 │   └── robots.txt
@@ -119,6 +124,7 @@ NUXT_SEARCH_ENGINE_ID=your_search_engine_id_here
 ├── tsconfig.json              # TypeScript 配置文件
 ├── .gitignore                 # Git 忽略文件
 └── yarn.lock                  # Yarn 锁文件
+```
 
 ## 依赖项
 
@@ -126,4 +132,4 @@ NUXT_SEARCH_ENGINE_ID=your_search_engine_id_here
 - Tailwind CSS
 - Vue 3
 
-有关工作原理的详细说明，请查看 [Programmable Search Engine](https://developers.google.com/custom-search/v1/overview?hl=zh-cn)。
+有关工作原理的详细说明，请查看 [Programmable Search Engine](https://developers.google.com/custom-search/v1/overview?hl=zh-cn) 

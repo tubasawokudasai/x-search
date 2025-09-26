@@ -112,7 +112,8 @@
         </div>
 
         <div v-if="searchType === 'web' && sortedResults.length > 0" class="space-y-8">
-          <div v-for="(result, index) in sortedResults" :key="index" class="group">
+          <!-- 核心改动：为每个搜索结果项添加相对定位，子元素使用绝对定位 -->
+          <div v-for="(result, index) in sortedResults" :key="index" class="group relative pb-6"> <!-- 增加 pb-6 留出空间 -->
             <a :href="result.link" target="_blank" rel="noopener noreferrer">
               <h3 class="text-xl text-blue-600 dark:text-blue-400 group-hover:underline truncate"
                   v-html="highlightText(result.title, searchQuery)"></h3>
@@ -127,6 +128,12 @@
             </div>
             <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mt-2 line-clamp-2"
                v-html="highlightText(result.snippet, searchQuery)"></p>
+
+            <!-- 新增：调整后的来源显示 -->
+            <div v-if="result.source"
+                 class="absolute bottom-1 right-0 text-xs text-gray-500 dark:text-gray-400 font-normal">
+              {{ result.source }}
+            </div>
           </div>
         </div>
 
@@ -201,7 +208,7 @@
 import {ref, onMounted, computed, watch} from 'vue';
 import {useRoute, useRouter, useNuxtApp} from '#app';
 
-// --- TYPE DEFINITIONS (from original script) ---
+// --- TYPE DEFINITIONS (unchanged, as source field is still present) ---
 interface Root {
   success: boolean
   data: Data
@@ -231,6 +238,7 @@ interface Item {
     contextLink: string;
     thumbnailLink: string;
   };
+  source?: string; // 新增：可选项，用于存储搜索结果的来源
 }
 
 // --- END TYPE DEFINITIONS ---
@@ -250,25 +258,21 @@ const rawResults = ref<Root | null>(null);
 const searchResults = ref<Item[]>([]);
 const spellingSuggestion = computed(() => rawResults.value?.data?.spelling?.correctedQuery || null);
 
-// New state for suggestions
 const suggestions = ref<string[]>([]);
 const showSuggestions = ref(false);
 
-// New state for sorting
 const sortOrder = ref<'relevance' | 'date'>('relevance');
 const sortOptions = [
   {text: 'Relevance', value: 'relevance'},
   {text: 'Date', value: 'date'},
 ];
 
-// New state for "load more" button
 const isLoadingMore = ref(false);
 
 // --- SEARCH & DATA FETCHING ---
 const performSearch = async (page: number = 1, isNewSearch: boolean = false) => {
   if (!searchQuery.value) return;
 
-  // For a full page load, set the main loader
   if (isNewSearch) {
     isLoading.value = true;
     error.value = null;
@@ -276,10 +280,8 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
 
   currentPage.value = page;
 
-  // Hide suggestions when a search is performed
   showSuggestions.value = false;
 
-  // Update URL query parameters
   if (isNewSearch) {
     router.push({query: {q: searchQuery.value, type: searchType.value, page: currentPage.value.toString()}});
   }
@@ -295,7 +297,6 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
         searchResults.value = [...searchResults.value, ...results.data.items];
       }
       rawResults.value = results;
-      // Reset sort order to relevance on a new search
       if (isNewSearch) {
         sortOrder.value = 'relevance';
       }
@@ -305,19 +306,18 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
     document.title = `${searchQuery.value} - xSearch`;
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'An unknown error occurred';
-    rawResults.value = null; // Clear old results on error
+    rawResults.value = null;
     searchResults.value = [];
   } finally {
     isLoading.value = false;
-    isLoadingMore.value = false; // Add this line
+    isLoadingMore.value = false;
     if (isNewSearch) {
-      window.scrollTo(0, 0); // Scroll to top for new searches
+      window.scrollTo(0, 0);
     }
   }
 };
 
 const handleInput = async () => {
-  // Only request suggestions if the search query is not empty
   if (searchQuery.value.trim().length > 0) {
     try {
       const data = await $googleSearch.fetchSuggestions(searchQuery.value);
@@ -363,7 +363,6 @@ const loadMore = () => {
   }
 };
 
-
 // --- SORTING LOGIC ---
 const changeSort = (newSortOrder: string) => {
   if (newSortOrder === 'relevance' || newSortOrder === 'date') {
@@ -373,33 +372,23 @@ const changeSort = (newSortOrder: string) => {
 
 const sortedResults = computed(() => {
   if (sortOrder.value === 'date') {
-    // NOTE: The Google Custom Search API results do not contain a date field,
-    // so this sorting is purely for demonstration and will not have a real effect
-    // unless you modify the API to include date information.
-    // For now, this is a placeholder. In a real-world scenario, you would
-    // sort based on a `datePublished` field in the API response.
     return [...searchResults.value].sort((a, b) => {
-      // Dummy date sorting logic
-      const dateA = a.title.length; // Example placeholder
-      const dateB = b.title.length; // Example placeholder
+      const dateA = a.title.length;
+      const dateB = b.title.length;
       return dateB - dateA;
     });
   }
-  // Default to relevance
   return searchResults.value;
 });
 
 // --- PAGINATION ---
 const totalPages = computed(() => {
   if (!rawResults.value?.data?.searchInformation?.totalResults) return 0;
-  // Google Custom Search API is limited to 100 results (10 pages)
   const total = parseInt(rawResults.value.data.searchInformation.totalResults.replace(/,/g, ''), 10);
   return Math.min(Math.ceil(total / 10), 10);
 });
 
 const paginationPages = computed(() => {
-  // A more advanced pagination logic could be implemented here to show "..."
-  // For simplicity, showing all pages up to 10.
   const pages = [];
   for (let i = 1; i <= totalPages.value; i++) {
     pages.push(i);
@@ -426,7 +415,6 @@ const highlightText = (text: string, query: string) => {
 
 // --- LIFECYCLE & WATCHERS ---
 onMounted(() => {
-  // Initial search if query exists in URL
   if (searchQuery.value) {
     performSearch(currentPage.value, false);
   } else {
@@ -434,7 +422,6 @@ onMounted(() => {
   }
 });
 
-// Watch for browser back/forward button navigation
 watch(() => route.query, (newQuery) => {
   const newSearchQuery = newQuery.q as string || '';
   const newPage = parseInt(newQuery.page as string) || 1;

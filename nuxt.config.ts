@@ -18,6 +18,7 @@ export default defineNuxtConfig({
     // 在服务器端使用的环境变量
     googleApiKey: '',
     searchEngineId: '',
+    braveApiKey: '',
     public: {
       // 客户端需要的环境变量
 
