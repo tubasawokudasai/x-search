@@ -3,7 +3,7 @@ import {useRuntimeConfig} from '#imports';
 import NodeCache from 'node-cache';
 
 const searchCache = new NodeCache({stdTTL: 7200});
-const RRF_K = 60;
+const RRF_K = 60; // Reciprocal Rank Fusion 常量
 
 /**
  * 执行Google Custom Search Engine搜索
@@ -11,23 +11,19 @@ const RRF_K = 60;
  * @param {number} page - 页码 (Google CSE每页10条)
  * @param {string} sort - 排序方式 (e.g., 'relevance', 'date')
  * @param {string} type - 搜索类型 (e.g., 'web', 'image')
- * @param {number} startIndex - Google搜索的起始索引，优先级高于page参数
+ * @param {number|undefined} startIndex - Google搜索的起始索引，优先级高于page参数
  * @param {object} runtimeConfig - 运行时配置，包含Google API密钥和搜索引擎ID
  * @returns {Promise<SearchAPIResponse>} - 标准化搜索结果数组和时间
  */
 async function searchGoogle(q, page, sort, type, startIndex, runtimeConfig) {
     const startTime = Date.now();
     try {
-        const apiKeys = runtimeConfig.googleApiKey?.split(',');
-        if (!apiKeys || !apiKeys.length) {
-            console.warn('Google API密钥未配置。Google Search将被跳过。');
-            return {results: [], time: Date.now() - startTime, error: 'Google API Key not configured'};
-        }
-        const randomIndex = Math.floor(Math.random() * apiKeys.length);
-        const googleApiKey = apiKeys[randomIndex];
+        const rawGoogleApiKeys = runtimeConfig.googleApiKey; // 获取原始字符串
         const searchEngineId = runtimeConfig.searchEngineId;
 
-        if (!googleApiKey || !searchEngineId) {
+        // 检查 Google API 密钥和搜索引擎 ID 是否有效配置（纯JS风格）
+        if (!rawGoogleApiKeys || typeof rawGoogleApiKeys !== 'string' || rawGoogleApiKeys.trim() === '' ||
+            !searchEngineId || typeof searchEngineId !== 'string' || searchEngineId.trim() === '') {
             console.warn('Google API密钥或搜索引擎ID未配置。Google Search将被跳过。');
             return {
                 results: [],
@@ -36,13 +32,26 @@ async function searchGoogle(q, page, sort, type, startIndex, runtimeConfig) {
             };
         }
 
+        // 拆分并过滤有效的 API 密钥
+        const apiKeys = rawGoogleApiKeys.split(',').map(key => key.trim()).filter(key => key !== '');
+        if (apiKeys.length === 0) {
+            console.warn('Google API密钥无效或为空列表。Google Search将被跳过。');
+            return {
+                results: [],
+                time: Date.now() - startTime,
+                error: 'Google API Key is invalid or empty list'
+            };
+        }
+
+        const googleApiKey = apiKeys[Math.floor(Math.random() * apiKeys.length)];
+
         let url = `https://customsearch.googleapis.com/customsearch/v1?key=${googleApiKey}&cx=${searchEngineId}&q=${encodeURIComponent(q.toString())}`;
         url += `&gl=hk&hl=zh-HK&lr=lang_zh-HK`;
         url += startIndex ? `&start=${startIndex}` : `&start=${(page - 1) * 10 + 1}`;
 
         if (type === 'image') {
             url += `&searchType=image`;
-        } else if (sort === 'date') { // sort='date'只对普通网页搜索生效
+        } else if (sort === 'date') {
             url += `&sort=date`;
         }
 
@@ -55,22 +64,19 @@ async function searchGoogle(q, page, sort, type, startIndex, runtimeConfig) {
                 return data.items.map((item, index) => {
                     const baseResult = {
                         title: item.title,
-                        snippet: item.snippet || item.title || '', // Fallback for snippet
-                        link: item.link, // Google CSE 图片搜索时，item.link 通常就是图片本身的URL
+                        snippet: item.snippet || item.title || '',
+                        link: item.link,
                         originalRank: index + 1,
                         source: 'google',
                         originalItem: item,
-                        contextLink: null, // 默认设置为null
-                        thumbnailLink: null, // 默认设置为null
+                        contextLink: null,
+                        thumbnailLink: null,
                     };
 
-                    // 根据提供的 Google CSE 图片接口，图片信息在 item.image 对象下
-                    // 确保 item.image 存在，然后从其中提取 contextLink 和 thumbnailLink
                     if (type === 'image' && item.image) {
                         baseResult.contextLink = item.image.contextLink ?? null;
                         baseResult.thumbnailLink = item.image.thumbnailLink ?? null;
                     }
-                    // 对于非图片搜索，或者 item.image 不存在的情况，contextLink/thumbnailLink 保持为 null
                     return baseResult;
                 });
             }
@@ -93,13 +99,26 @@ async function searchGoogle(q, page, sort, type, startIndex, runtimeConfig) {
 async function searchBrave(q, type, runtimeConfig) {
     const startTime = Date.now();
     try {
-        const braveApiKeys = runtimeConfig.braveApiKey?.split(',');
-        if (!braveApiKeys || !braveApiKeys.length) {
+        const rawBraveApiKeys = runtimeConfig.braveApiKey; // 获取原始字符串
+
+        // 检查 Brave API 密钥是否有效配置（纯JS风格）
+        if (!rawBraveApiKeys || typeof rawBraveApiKeys !== 'string' || rawBraveApiKeys.trim() === '') {
             console.warn('Brave API密钥未配置。Brave Search将被跳过。');
             return {results: [], time: Date.now() - startTime, error: 'Brave API Key not configured'};
         }
-        const randomIndex = Math.floor(Math.random() * braveApiKeys.length);
-        const braveApiKey = braveApiKeys[randomIndex];
+
+        // 拆分并过滤有效的 API 密钥
+        const braveApiKeys = rawBraveApiKeys.split(',').map(key => key.trim()).filter(key => key !== '');
+        if (braveApiKeys.length === 0) {
+            console.warn('Brave API密钥无效或为空列表。Brave Search将被跳过。');
+            return {
+                results: [],
+                time: Date.now() - startTime,
+                error: 'Brave API Key is invalid or empty list'
+            };
+        }
+
+        const braveApiKey = braveApiKeys[Math.floor(Math.random() * braveApiKeys.length)];
 
         const baseUrl = type === 'image'
             ? `https://api.search.brave.com/res/v1/images/search`
@@ -117,22 +136,22 @@ async function searchBrave(q, type, runtimeConfig) {
         };
 
         return await makeTimedExternalApiCall(url.toString(), fetchOptions, 'Brave Search', (data) => {
-            if (type === 'image' && data && data.results) { // Brave 图片搜索的处理
+            if (type === 'image' && data && data.results) {
                 return data.results.map((item, index) => {
                     const titleFallback = item.title || 'Image Result';
-                    const snippetFallback = item.title || 'No description available.'; // 图片搜索没有原生 snippet
+                    const snippetFallback = item.title || 'No description available.';
                     return {
                         title: titleFallback,
                         snippet: snippetFallback,
-                        link: item.properties?.url ?? null, // 正确：图片本身的URL来自 item.properties.url
-                        thumbnailLink: item.thumbnail?.src ?? null, // 缩略图URL，使用可选链和 ??
-                        contextLink: item.url, // 正确：图片所在的源页面URL来自 item.url
+                        link: item.properties?.url ?? null,
+                        thumbnailLink: item.thumbnail?.src ?? null,
+                        contextLink: item.url,
                         originalRank: index + 1,
                         source: 'brave',
                         originalItem: item
                     };
                 });
-            } else if (data && data.web && data.web.results) { // Brave 网页搜索的处理
+            } else if (data && data.web && data.web.results) {
                 return data.web.results.map((item, index) => ({
                     title: item.title,
                     snippet: item.description,
@@ -140,7 +159,7 @@ async function searchBrave(q, type, runtimeConfig) {
                     originalRank: index + 1,
                     source: 'brave',
                     originalItem: item,
-                    contextLink: null, // 非图片搜索确保这些字段为null
+                    contextLink: null,
                     thumbnailLink: null,
                 }));
             }
@@ -158,8 +177,15 @@ export default defineEventHandler(async (event) => {
     let braveApiTime = null;
 
     try {
-        const {q, page = 1, sort = 'relevance', type = 'web', startIndex} = getQuery(event);
-        if (!q) {
+        const rawQuery = getQuery(event);
+        // 确保 query 参数处理为纯JS风格的类型转换和默认值
+        const q = typeof rawQuery.q === 'string' ? rawQuery.q : undefined;
+        const page = parseInt(rawQuery.page) || 1;
+        const sort = typeof rawQuery.sort === 'string' ? rawQuery.sort : 'relevance';
+        const type = typeof rawQuery.type === 'string' ? rawQuery.type : 'web';
+        const startIndex = rawQuery.startIndex ? parseInt(rawQuery.startIndex) : undefined;
+
+        if (!q || q.trim() === '') {
             const handlerEndTime = Date.now();
             return {
                 success: false,
@@ -209,7 +235,7 @@ export default defineEventHandler(async (event) => {
 
         const uniqueResultsMap = new Map();
         allResults.forEach(result => {
-            if (!uniqueResultsMap.has(result.link)) {
+            if (result.link && !uniqueResultsMap.has(result.link)) {
                 uniqueResultsMap.set(result.link, {
                     title: result.title,
                     snippet: result.snippet,
@@ -224,7 +250,7 @@ export default defineEventHandler(async (event) => {
         });
 
         allResults.forEach(result => {
-            if (uniqueResultsMap.has(result.link)) {
+            if (result.link && uniqueResultsMap.has(result.link)) {
                 const score = 1 / (RRF_K + result.originalRank);
                 const entry = uniqueResultsMap.get(result.link);
                 if (entry) {
@@ -238,7 +264,7 @@ export default defineEventHandler(async (event) => {
         const aggregatedResponse = {
             searchInformation: {
                 searchTime: ((googleApiTime || 0) + (braveApiTime || 0)) / ((googleApiTime && braveApiTime) ? 2 : (googleApiTime || braveApiTime) ? 1 : 1) || 0,
-                formattedSearchTime: `${(((googleApiTime || 0) + (braveApiTime || 0)) / 2000 || 0).toFixed(2)} seconds`,
+                formattedSearchTime: `${(((googleApiTime || 0) + (braveApiTime || 0)) / ((googleApiTime && braveApiTime) ? 2000 : (googleApiTime || braveApiTime) ? 1000 : 1000) || 0).toFixed(2)} seconds`,
                 totalResults: uniqueResults.length.toString(),
                 formattedTotalResults: `${uniqueResults.length} results`
             },
@@ -280,9 +306,10 @@ export default defineEventHandler(async (event) => {
         console.error('服务端搜索代理错误:', error);
 
         let statusMessage = error.message || '服务端处理搜索请求失败';
-        if (error.name === 'AbortError') {
+        // 在纯JS中，使用 instanceof DOMException 并检查 name 属性来处理 AbortError
+        if (error instanceof DOMException && error.name === 'AbortError') {
             statusMessage = '请求超时，请稍后再试';
-        } else if (error.message.includes('status 429')) {
+        } else if (error instanceof Error && error.message.includes('status 429')) {
             statusMessage = 'API调用频率过高，请稍后再试';
         }
 
@@ -324,6 +351,10 @@ async function makeTimedExternalApiCall(url, options, apiName, dataExtractor) {
         const duration = Date.now() - startTime;
         return {results, time: duration, error: null};
     } catch (error) {
+        // 对于 AbortError，重新抛出，以便上层处理器可以识别并给出更友好的超时提示
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            throw error;
+        }
         console.error(`${apiName} API调用失败:`, error.message);
         return {results: [], time: Date.now() - startTime, error: error.message};
     }
