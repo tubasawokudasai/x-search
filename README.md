@@ -1,16 +1,16 @@
-# xSearch - 高集成度网页搜索客户端
+# xSearch - 聚合网页搜索
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Ftubasawokudasai%2Fx-search&env=NUXT_GOOGLE_API_KEY,NUXT_SEARCH_ENGINE_ID,NUXT_BRAVE_API_KEY&envDescription=Enter%20your%20Google%20API%20Key,Search%20Engine%20ID%20and%20Brave%20API%20Key.&project-name=x-search-app&repository-name=x-search-app)
 [![Deploy to Cloudflare Pages](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https%3A%2F%2Fgithub.com%2Ftubasawokudasai%2Fx-search&env=NUXT_GOOGLE_API_KEY,NUXT_SEARCH_ENGINE_ID,NUXT_BRAVE_API_KEY)
 
-基于 Nuxt.js 的网页搜索客户端，集成 Google 自定义搜索引擎 API **和 Brave 搜索 API**，提供多样化的网页和图片搜索功能。
+基于 **Nuxt.js** 的网页搜索应用，集成了 **Google 自定义搜索引擎 API** 和 **Brave 搜索 API**，提供网页和图片搜索功能。具有响应式设计和深色模式等特性。
 
 ## 功能特性
 
 -   **多搜索引擎支持**：灵活切换和使用 Google 自定义搜索及 Brave 搜索服务。
 -   网页搜索结果高亮显示
 -   图片搜索网格布局
--   分页支持（最多100个结果，取决于API限制）
+-   分页支持
 -   深色模式支持
 -   拼写建议
 -   响应式设计
@@ -132,4 +132,6 @@ NUXT_BRAVE_API_KEY=your_brave_api_key_here
 - Tailwind CSS
 - Vue 3
 
-有关工作原理的详细说明，请查看 [Programmable Search Engine](https://developers.google.com/custom-search/v1/overview?hl=zh-cn) 
+参考文档 
+- [Programmable Search Engine](https://developers.google.com/custom-search/v1/overview?hl=zh-cn) 
+- [Brave Search API Documentation](https://api-dashboard.search.brave.com/app/documentation/web-search/get-started)

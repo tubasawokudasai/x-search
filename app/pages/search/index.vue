@@ -66,8 +66,8 @@
       <div v-else-if="searchQuery && rawResults">
         <div class="flex justify-between items-center mb-4">
           <div v-if="rawResults.data.searchInformation" class="text-sm text-gray-600 dark:text-gray-400">
-            About {{ rawResults.data.searchInformation.formattedTotalResults }} results
-            ({{ rawResults.data.searchInformation.formattedSearchTime }} seconds)
+            About {{ rawResults.data.searchInformation.formattedTotalResults }}
+            ({{ rawResults.totalResponseTime/1000 }} seconds)
           </div>
         </div>
 
@@ -210,7 +210,8 @@ import {useRoute, useRouter, useNuxtApp} from '#app';
 
 // --- TYPE DEFINITIONS (unchanged, as source field is still present) ---
 interface Root {
-  success: boolean
+  success: boolean,
+  totalResponseTime: number
   data: Data
 }
 
