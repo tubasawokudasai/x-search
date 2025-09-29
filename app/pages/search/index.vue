@@ -64,12 +64,23 @@
       </div>
 
       <div v-else-if="searchQuery && rawResults">
+        <!-- 修改后的部分开始 -->
         <div class="flex justify-between items-center mb-4">
-          <div v-if="rawResults.data.searchInformation" class="text-sm text-gray-600 dark:text-gray-400">
-            About {{ rawResults.data.searchInformation.formattedTotalResults }}
-            ({{ rawResults.totalResponseTime/1000 }} seconds)
+          <div v-if="rawResults.data.searchInformation" class="relative group">
+            <div class="text-sm text-gray-600 dark:text-gray-400 cursor-help">
+              About {{ rawResults.data.searchInformation.formattedTotalResults }}
+              (<span class="hover:underline">{{ rawResults.totalResponseTime / 1000 }} seconds</span>)
+            </div>
+            <!-- Tooltip 浮窗 -->
+            <div v-if="rawResults.apiTimings"
+                 class="absolute left-0 mt-2 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30">
+              <p v-for="(time, apiName) in rawResults.apiTimings" :key="apiName">
+                {{ (apiName as string).charAt(0).toUpperCase() + (apiName as string).slice(1) }}: {{ time / 1000 }}s
+              </p>
+            </div>
           </div>
         </div>
+        <!-- 修改后的部分结束 -->
 
         <div v-if="spellingSuggestion"
              class="text-sm text-gray-700 dark:text-gray-300 mb-4 p-3 bg-blue-50 dark:bg-gray-950 rounded-lg">
@@ -112,8 +123,7 @@
         </div>
 
         <div v-if="searchType === 'web' && sortedResults.length > 0" class="space-y-8">
-          <!-- 核心改动：为每个搜索结果项添加相对定位，子元素使用绝对定位 -->
-          <div v-for="(result, index) in sortedResults" :key="index" class="group relative pb-6"> <!-- 增加 pb-6 留出空间 -->
+          <div v-for="(result, index) in sortedResults" :key="index" class="group relative pb-6">
             <a :href="result.link" target="_blank" rel="noopener noreferrer">
               <h3 class="text-xl text-blue-600 dark:text-blue-400 group-hover:underline truncate"
                   v-html="highlightText(result.title, searchQuery)"></h3>
@@ -129,7 +139,6 @@
             <p class="text-sm text-gray-600 dark:text-gray-400 leading-relaxed mt-2 line-clamp-2"
                v-html="highlightText(result.snippet, searchQuery)"></p>
 
-            <!-- 新增：调整后的来源显示 -->
             <div v-if="result.source"
                  class="absolute bottom-1 right-0 text-xs text-gray-500 dark:text-gray-400 font-normal">
               {{ result.source }}
@@ -192,7 +201,8 @@
                   }">
             <span v-if="!isLoadingMore">More Results</span>
             <span v-else>Loading...</span>
-            <div v-if="isLoadingMore" class="ml-2 inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
+            <div v-if="isLoadingMore"
+                 class="ml-2 inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-gray-400"></div>
             <svg v-else class="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"
                  xmlns="http://www.w3.org/2000/svg">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -203,43 +213,46 @@
     </div>
   </div>
 </template>
-
 <script lang="ts" setup>
 import {ref, onMounted, computed, watch} from 'vue';
 import {useRoute, useRouter, useNuxtApp} from '#app';
 
-// --- TYPE DEFINITIONS (unchanged, as source field is still present) ---
+// --- TYPE DEFINITIONS ---
 interface Root {
   success: boolean,
-  totalResponseTime: number
-  data: Data
+  totalResponseTime: number,
+  data: Data,
+  apiTimings?: {
+    [key: string]: number; // 动态键名，存储不同API的耗时
+  };
+  error?: string;
 }
 
 interface Data {
-  searchInformation: SearchInformation
-  items: Item[]
+  searchInformation: SearchInformation,
+  items: Item[],
   spelling?: {
     correctedQuery: string;
   }
 }
 
 interface SearchInformation {
-  searchTime: number
-  formattedSearchTime: string
-  totalResults: string
+  searchTime: number,
+  formattedSearchTime: string,
+  totalResults: string,
   formattedTotalResults: string
 }
 
 interface Item {
-  title: string
-  link: string
-  displayLink: string
-  snippet: string
+  title: string,
+  link: string,
+  displayLink: string,
+  snippet: string,
   image: {
     contextLink: string;
     thumbnailLink: string;
   };
-  source?: string; // 新增：可选项，用于存储搜索结果的来源
+  source?: string;
 }
 
 // --- END TYPE DEFINITIONS ---
@@ -290,19 +303,20 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
   const startIndex = (page - 1) * 10 + 1;
 
   try {
-    const results = await $googleSearch.fetchResults(searchQuery.value, startIndex, searchType.value);
+    // 假设 $googleSearch.fetchResults 已经可以正确返回包含 apiTimings 的 Root 接口数据
+    const results: Root = await $googleSearch.fetchResults(searchQuery.value, startIndex, searchType.value);
     if (results.success) {
       if (isNewSearch) {
         searchResults.value = results.data.items;
       } else {
         searchResults.value = [...searchResults.value, ...results.data.items];
       }
-      rawResults.value = results;
+      rawResults.value = results; // 这里会正确存储 apiTimings
       if (isNewSearch) {
         sortOrder.value = 'relevance';
       }
     } else {
-      error.value = results.error;
+      error.value = results.error as string; // 修正类型断言
     }
     document.title = `${searchQuery.value} - xSearch`;
   } catch (err) {
@@ -321,7 +335,8 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
 const handleInput = async () => {
   if (searchQuery.value.trim().length > 0) {
     try {
-      const data = await $googleSearch.fetchSuggestions(searchQuery.value);
+      // 假设 fetchSuggestions 返回 { success: boolean, data: string[] }
+      const data: { success: boolean, data: string[] } = await $googleSearch.fetchSuggestions(searchQuery.value);
       if (data.success) {
         suggestions.value = data.data;
         showSuggestions.value = true;
@@ -374,6 +389,8 @@ const changeSort = (newSortOrder: string) => {
 const sortedResults = computed(() => {
   if (sortOrder.value === 'date') {
     return [...searchResults.value].sort((a, b) => {
+      // 这里的排序逻辑是基于 title 长度，如果需要按实际日期排序，需要确保 Item 接口有 date 字段，并且 API 返回了可解析的日期。
+      // 目前保持与您代码一致，但请注意这可能不是真正的日期排序。
       const dateA = a.title.length;
       const dateB = b.title.length;
       return dateB - dateA;
