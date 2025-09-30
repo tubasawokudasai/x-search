@@ -52,6 +52,7 @@ jobs:
               -e NUXT_GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }} \
               -e NUXT_SEARCH_ENGINE_ID=${{ secrets.SEARCH_ENGINE_ID }} \
               -e NUXT_BRAVE_API_KEY=${{ secrets.BRAVE_API_KEY }} \
+              -e NUXT_GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} \
               registry.cn-hangzhou.aliyuncs.com/openstackwang/x-search-app:${{ github.sha }}
             
             echo "Deployment complete."
