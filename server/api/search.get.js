@@ -291,7 +291,7 @@ export default defineEventHandler(async (event) => {
             const runtime = globalThis;
             runtime.__pendingAIReplies = runtime.__pendingAIReplies || new Map();
 
-            const aiPrompt = `基于搜索关键词「${q}」，生成结构化的 AI 概览：注意：语言需与关键词语言一致（中文关键词用中文回复，英文关键词用英文回复）。`;
+            const aiPrompt = `基于搜索关键词「${q}」，生成结构化 AI 概览：请紧扣关键词核心信息，用简洁语言分点（如要点 1、要点 2）呈现，不展开无关内容，快速聚焦核心，避免发散。语言需与关键词语言一致。`;
 
             // 异步执行 Gemini 调用（不阻塞当前函数返回）
             (async () => {

@@ -15,7 +15,7 @@
               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400 dark:text-gray-500" fill="none"
                    viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
             <input
@@ -37,7 +37,7 @@
                        class="h-4 w-4 text-gray-400 dark:text-gray-500 mr-3 flex-shrink-0" fill="none"
                        viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                   <span class="truncate">{{ suggestion }}</span>
                 </li>
@@ -140,7 +140,7 @@
               <div
                   class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-500 dark:text-gray-400">
                 <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/>
+                  <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
                 </svg>
               </div>
             </div>
@@ -221,9 +221,9 @@
                   :disabled="isLoadingMore"
                   class="flex items-center px-4 py-2 border rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   :class="{
-                    'border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white': !isLoadingMore,
-                    'border-gray-400 text-gray-400': isLoadingMore
-                  }">
+              'border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white': !isLoadingMore,
+              'border-gray-400 text-gray-400': isLoadingMore
+            }">
             <span v-if="!isLoadingMore">More Results</span>
             <span v-else>Loading...</span>
             <div v-if="isLoadingMore"
@@ -238,9 +238,10 @@
     </div>
   </div>
 </template>
+
 <script lang="ts" setup>
-import {ref, onMounted, computed, watch, onUnmounted} from 'vue';
-import {useRoute, useRouter, useNuxtApp} from '#app';
+import { ref, onMounted, computed, watch, onUnmounted } from 'vue';
+import { useRoute, useRouter, useNuxtApp } from '#app';
 
 // --- TYPE DEFINITIONS ---
 interface Root {
@@ -285,11 +286,27 @@ interface Item {
   source?: string;
 }
 
+// AI响应数据结构定义
+interface AiResponse {
+  success: boolean;
+  data: {
+    taskId: string;
+    query: string;
+    source: string;
+    status: 'completed' | 'failed' | 'processing';
+    error?: string;
+    data?: {
+      aiOverview: string;
+    };
+    generatedAt: number;
+  };
+}
+
 // --- END TYPE DEFINITIONS ---
 
 const route = useRoute();
 const router = useRouter();
-const {$googleSearch} = useNuxtApp();
+const { $googleSearch } = useNuxtApp();
 
 // --- STATE MANAGEMENT ---
 const searchQuery = ref(route.query.q as string || '');
@@ -307,8 +324,8 @@ const showSuggestions = ref(false);
 
 const sortOrder = ref<'relevance' | 'date'>('relevance');
 const sortOptions = [
-  {text: 'Relevance', value: 'relevance'},
-  {text: 'Date', value: 'date'},
+  { text: 'Relevance', value: 'relevance' },
+  { text: 'Date', value: 'date' },
 ];
 
 const isLoadingMore = ref(false);
@@ -327,8 +344,8 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
   if (isNewSearch) {
     isLoading.value = true;
     error.value = null;
-    // Clear previous AI state on a new search
-    if (pollingInterval.value) clearInterval(pollingInterval.value);
+    // 清除之前的AI状态
+    stopPolling();
     aiOverview.value = null;
     isAiLoading.value = false;
     aiError.value = null;
@@ -338,7 +355,7 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
   showSuggestions.value = false;
 
   if (isNewSearch) {
-    router.push({query: {q: searchQuery.value, type: searchType.value, page: currentPage.value.toString()}});
+    router.push({ query: { q: searchQuery.value, type: searchType.value, page: currentPage.value.toString() } });
   }
 
   const startIndex = (page - 1) * 10 + 1;
@@ -356,7 +373,7 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
         sortOrder.value = 'relevance';
       }
 
-      // Check for AI task and start polling
+      // 检查AI任务并开始轮询
       if (isNewSearch && results.data.aiTask?.hasAI && results.data.aiTask.taskId) {
         isAiLoading.value = true;
         pollAiResult(results.data.aiTask.taskId);
@@ -379,13 +396,30 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
   }
 };
 
+// 停止轮询的工具函数
+const stopPolling = () => {
+  if (pollingInterval.value) {
+    clearInterval(pollingInterval.value);
+    pollingInterval.value = null;
+  }
+};
+
 const pollAiResult = (taskId: string) => {
+  // 启动新轮询前先清除旧的
+  stopPolling();
+
   let retries = 0;
-  const maxRetries = 20; // Poll for a maximum of 40 seconds
+  const maxRetries = 20; // 最多重试20次，每次间隔2秒，共40秒
 
   const fetchAiData = async () => {
+    // 安全检查：如果已有结果或已停止加载，直接退出
+    if (aiOverview.value || !isAiLoading.value) {
+      stopPolling();
+      return;
+    }
+
     if (retries >= maxRetries) {
-      if (pollingInterval.value) clearInterval(pollingInterval.value);
+      stopPolling();
       aiError.value = "AI overview generation timed out.";
       isAiLoading.value = false;
       return;
@@ -405,32 +439,46 @@ const pollAiResult = (taskId: string) => {
         throw new Error(`API request failed with status ${rawResponse.status}`);
       }
 
-      const response = await rawResponse.json();
+      const response: AiResponse = await rawResponse.json();
 
       if (response.success) {
         const aiData = response.data;
-        if (aiData.status === 'completed') {
-          if (pollingInterval.value) clearInterval(pollingInterval.value);
+
+        // 处理失败状态
+        if (aiData.status === 'failed') {
+          stopPolling();
+          aiError.value = aiData.error || 'AI生成失败，请稍后重试';
+          isAiLoading.value = false;
+          aiOverview.value = null;
+          return;
+        }
+
+        // 处理成功状态
+        if (aiData.status === 'completed' && aiData.data) {
+          stopPolling();
           aiOverview.value = aiData.data;
           isAiLoading.value = false;
           aiError.value = null;
-        } else if (aiData.status === 'failed') {
-          if (pollingInterval.value) clearInterval(pollingInterval.value);
-          aiError.value = aiData.error || 'Failed to generate AI overview.';
-          isAiLoading.value = false;
+          return;
         }
+
+        // 处理仍在处理中的状态（不做操作，继续轮询）
       } else {
-        if (pollingInterval.value) clearInterval(pollingInterval.value);
-        aiError.value = response.error || 'An error occurred while fetching AI result.';
+        // API返回success: false的情况
+        stopPolling();
+        aiError.value = response.data?.error || '获取AI结果失败';
         isAiLoading.value = false;
       }
     } catch (err) {
-      if (pollingInterval.value) clearInterval(pollingInterval.value);
-      aiError.value = err instanceof Error ? err.message : 'Could not poll for AI result.';
+      // 网络错误等异常情况
+      stopPolling();
+      aiError.value = err instanceof Error ? err.message : '轮询AI结果时发生错误';
       isAiLoading.value = false;
     }
   };
 
+  // 立即执行一次，再开始轮询
+  fetchAiData();
   pollingInterval.value = setInterval(fetchAiData, 2000);
 };
 
@@ -464,7 +512,7 @@ const selectSuggestion = (suggestion: string) => {
 const searchWithSuggestion = (suggestion: string) => {
   searchQuery.value = suggestion;
   performSearch(1, true);
-}
+};
 
 const changeSearchType = (type: 'web' | 'image') => {
   if (searchType.value !== type) {
@@ -484,7 +532,7 @@ const loadMore = () => {
 const changeSort = (newSortOrder: string) => {
   if (newSortOrder === 'relevance' || newSortOrder === 'date') {
     sortOrder.value = newSortOrder;
-    // Re-trigger search if sorting by date requires a new API call
+    // 按日期排序需要重新调用API
     if (newSortOrder === 'date') {
       performSearch(1, true);
     }
@@ -492,8 +540,6 @@ const changeSort = (newSortOrder: string) => {
 };
 
 const sortedResults = computed(() => {
-  // Sorting is now handled by the API for 'date', so we just return the results as is.
-  // Client-side sorting is removed to reflect backend dependency.
   return searchResults.value;
 });
 
@@ -501,7 +547,7 @@ const sortedResults = computed(() => {
 const totalPages = computed(() => {
   if (!rawResults.value?.data?.searchInformation?.totalResults) return 0;
   const total = parseInt(rawResults.value.data.searchInformation.totalResults.replace(/,/g, ''), 10);
-  return Math.min(Math.ceil(total / 10), 10); // Limit to 10 pages
+  return Math.min(Math.ceil(total / 10), 10); // 最多显示10页
 });
 
 const paginationPages = computed(() => {
@@ -531,9 +577,9 @@ const highlightText = (text: string, query: string) => {
 
 const formatAiContent = (content: string) => {
   if (!content) return '';
-  // Sanitize basic HTML to be safe with v-html
+  // 基础HTML sanitize
   let sanitized = content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  // Convert markdown-like bold to <strong> tags
+  // 转换markdown粗体为strong标签
   return sanitized.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 };
 
@@ -545,9 +591,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-  if (pollingInterval.value) {
-    clearInterval(pollingInterval.value);
-  }
+  stopPolling(); // 组件卸载时停止轮询
 });
 
 watch(() => route.query, (newQuery, oldQuery) => {
@@ -555,7 +599,7 @@ watch(() => route.query, (newQuery, oldQuery) => {
   const newPage = parseInt(newQuery.page as string) || 1;
   const newType = (newQuery.type as 'web' | 'image') || 'web';
 
-  // Only perform search if query actually changes to avoid redundant calls on initial load
+  // 只有当查询、页码或类型变化时才执行搜索
   if (newSearchQuery && (newSearchQuery !== oldQuery.q || newPage !== oldQuery.page || newType !== oldQuery.type)) {
     searchQuery.value = newSearchQuery;
     currentPage.value = newPage;
