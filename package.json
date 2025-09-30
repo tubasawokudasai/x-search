@@ -12,14 +12,16 @@
   "dependencies": {
     "h3": "^1.15.4",
     "iconv-lite": "^0.7.0",
+    "natural": "^8.1.0",
     "node-cache": "^5.1.2",
+    "nodejieba": "^3.5.2",
     "nuxt": "^4.1.2",
     "vue": "^3.5.21",
     "vue-router": "^4.5.1"
   },
   "devDependencies": {
-    "@types/node": "^24.5.2",
     "@tailwindcss/vite": "^4.1.13",
+    "@types/node": "^24.5.2",
     "tailwindcss": "^4.1.13"
   }
 }

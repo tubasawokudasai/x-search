@@ -64,23 +64,48 @@
       </div>
 
       <div v-else-if="searchQuery && rawResults">
-        <!-- 修改后的部分开始 -->
         <div class="flex justify-between items-center mb-4">
           <div v-if="rawResults.data.searchInformation" class="relative group">
             <div class="text-sm text-gray-600 dark:text-gray-400 cursor-help">
               About {{ rawResults.data.searchInformation.formattedTotalResults }}
-              (<span class="hover:underline">{{ rawResults.totalResponseTime / 1000 }} seconds</span>)
+              (<span class="hover:underline">{{ (rawResults.totalResponseTime / 1000).toFixed(2) }} seconds</span>)
             </div>
-            <!-- Tooltip 浮窗 -->
             <div v-if="rawResults.apiTimings"
                  class="absolute left-0 mt-2 p-2 bg-gray-800 text-white text-xs rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-30">
               <p v-for="(time, apiName) in rawResults.apiTimings" :key="apiName">
-                {{ (apiName as string).charAt(0).toUpperCase() + (apiName as string).slice(1) }}: {{ time / 1000 }}s
+                {{ (apiName as string).charAt(0).toUpperCase() + (apiName as string).slice(1) }}: {{ (time / 1000).toFixed(2) }}s
               </p>
             </div>
           </div>
         </div>
-        <!-- 修改后的部分结束 -->
+
+        <div v-if="isAiLoading || aiOverview || aiError" class="mb-6">
+          <div v-if="isAiLoading" class="p-5 border border-gray-200 dark:border-gray-800 rounded-lg bg-gray-50 dark:bg-gray-900 animate-pulse">
+            <div class="flex items-center mb-4">
+              <div class="w-6 h-6 rounded-full bg-gray-300 dark:bg-gray-700 mr-3"></div>
+              <div class="h-5 bg-gray-300 dark:bg-gray-700 rounded w-1/4"></div>
+            </div>
+            <div class="space-y-2">
+              <div class="h-3 bg-gray-300 dark:bg-gray-700 rounded w-full"></div>
+              <div class="h-3 bg-gray-300 dark:bg-gray-700 rounded w-5/6"></div>
+              <div class="h-3 bg-gray-300 dark:bg-gray-700 rounded w-full"></div>
+              <div class="h-3 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
+            </div>
+          </div>
+
+          <div v-else-if="aiError" class="p-4 border border-red-200 dark:border-red-800 rounded-lg bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300">
+            <p><strong>AI Overview Error:</strong> {{ aiError }}</p>
+          </div>
+
+          <div v-else-if="aiOverview" class="p-5 border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50/50 dark:bg-gray-900">
+            <div class="flex items-center mb-3">
+              <svg class="w-6 h-6 text-blue-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>
+              <h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200">AI Overview</h2>
+            </div>
+            <div class="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap" v-html="formatAiContent(aiOverview.aiOverview)">
+            </div>
+          </div>
+        </div>
 
         <div v-if="spellingSuggestion"
              class="text-sm text-gray-700 dark:text-gray-300 mb-4 p-3 bg-blue-50 dark:bg-gray-950 rounded-lg">
@@ -214,7 +239,7 @@
   </div>
 </template>
 <script lang="ts" setup>
-import {ref, onMounted, computed, watch} from 'vue';
+import {ref, onMounted, computed, watch, onUnmounted} from 'vue';
 import {useRoute, useRouter, useNuxtApp} from '#app';
 
 // --- TYPE DEFINITIONS ---
@@ -223,7 +248,7 @@ interface Root {
   totalResponseTime: number,
   data: Data,
   apiTimings?: {
-    [key: string]: number; // 动态键名，存储不同API的耗时
+    [key: string]: number;
   };
   error?: string;
 }
@@ -233,6 +258,11 @@ interface Data {
   items: Item[],
   spelling?: {
     correctedQuery: string;
+  },
+  aiTask: {
+    hasAI: boolean,
+    taskId: string | null,
+    source: string
   }
 }
 
@@ -283,6 +313,13 @@ const sortOptions = [
 
 const isLoadingMore = ref(false);
 
+// --- AI OVERVIEW STATE ---
+const isAiLoading = ref(false);
+const aiOverview = ref<{ aiOverview: string } | null>(null);
+const aiError = ref<string | null>(null);
+const pollingInterval = ref<NodeJS.Timeout | null>(null);
+
+
 // --- SEARCH & DATA FETCHING ---
 const performSearch = async (page: number = 1, isNewSearch: boolean = false) => {
   if (!searchQuery.value) return;
@@ -290,10 +327,14 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
   if (isNewSearch) {
     isLoading.value = true;
     error.value = null;
+    // Clear previous AI state on a new search
+    if (pollingInterval.value) clearInterval(pollingInterval.value);
+    aiOverview.value = null;
+    isAiLoading.value = false;
+    aiError.value = null;
   }
 
   currentPage.value = page;
-
   showSuggestions.value = false;
 
   if (isNewSearch) {
@@ -303,7 +344,6 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
   const startIndex = (page - 1) * 10 + 1;
 
   try {
-    // 假设 $googleSearch.fetchResults 已经可以正确返回包含 apiTimings 的 Root 接口数据
     const results: Root = await $googleSearch.fetchResults(searchQuery.value, startIndex, searchType.value);
     if (results.success) {
       if (isNewSearch) {
@@ -311,12 +351,19 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
       } else {
         searchResults.value = [...searchResults.value, ...results.data.items];
       }
-      rawResults.value = results; // 这里会正确存储 apiTimings
+      rawResults.value = results;
       if (isNewSearch) {
         sortOrder.value = 'relevance';
       }
+
+      // Check for AI task and start polling
+      if (isNewSearch && results.data.aiTask?.hasAI && results.data.aiTask.taskId) {
+        isAiLoading.value = true;
+        pollAiResult(results.data.aiTask.taskId);
+      }
+
     } else {
-      error.value = results.error as string; // 修正类型断言
+      error.value = results.error as string;
     }
     document.title = `${searchQuery.value} - xSearch`;
   } catch (err) {
@@ -332,10 +379,64 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
   }
 };
 
+const pollAiResult = (taskId: string) => {
+  let retries = 0;
+  const maxRetries = 20; // Poll for a maximum of 40 seconds
+
+  const fetchAiData = async () => {
+    if (retries >= maxRetries) {
+      if (pollingInterval.value) clearInterval(pollingInterval.value);
+      aiError.value = "AI overview generation timed out.";
+      isAiLoading.value = false;
+      return;
+    }
+    retries++;
+
+    try {
+      const rawResponse = await fetch('/api/ai-result', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ taskId })
+      });
+
+      if (!rawResponse.ok) {
+        throw new Error(`API request failed with status ${rawResponse.status}`);
+      }
+
+      const response = await rawResponse.json();
+
+      if (response.success) {
+        const aiData = response.data;
+        if (aiData.status === 'completed') {
+          if (pollingInterval.value) clearInterval(pollingInterval.value);
+          aiOverview.value = aiData.data;
+          isAiLoading.value = false;
+          aiError.value = null;
+        } else if (aiData.status === 'failed') {
+          if (pollingInterval.value) clearInterval(pollingInterval.value);
+          aiError.value = aiData.error || 'Failed to generate AI overview.';
+          isAiLoading.value = false;
+        }
+      } else {
+        if (pollingInterval.value) clearInterval(pollingInterval.value);
+        aiError.value = response.error || 'An error occurred while fetching AI result.';
+        isAiLoading.value = false;
+      }
+    } catch (err) {
+      if (pollingInterval.value) clearInterval(pollingInterval.value);
+      aiError.value = err instanceof Error ? err.message : 'Could not poll for AI result.';
+      isAiLoading.value = false;
+    }
+  };
+
+  pollingInterval.value = setInterval(fetchAiData, 2000);
+};
+
 const handleInput = async () => {
   if (searchQuery.value.trim().length > 0) {
     try {
-      // 假设 fetchSuggestions 返回 { success: boolean, data: string[] }
       const data: { success: boolean, data: string[] } = await $googleSearch.fetchSuggestions(searchQuery.value);
       if (data.success) {
         suggestions.value = data.data;
@@ -383,19 +484,16 @@ const loadMore = () => {
 const changeSort = (newSortOrder: string) => {
   if (newSortOrder === 'relevance' || newSortOrder === 'date') {
     sortOrder.value = newSortOrder;
+    // Re-trigger search if sorting by date requires a new API call
+    if (newSortOrder === 'date') {
+      performSearch(1, true);
+    }
   }
 };
 
 const sortedResults = computed(() => {
-  if (sortOrder.value === 'date') {
-    return [...searchResults.value].sort((a, b) => {
-      // 这里的排序逻辑是基于 title 长度，如果需要按实际日期排序，需要确保 Item 接口有 date 字段，并且 API 返回了可解析的日期。
-      // 目前保持与您代码一致，但请注意这可能不是真正的日期排序。
-      const dateA = a.title.length;
-      const dateB = b.title.length;
-      return dateB - dateA;
-    });
-  }
+  // Sorting is now handled by the API for 'date', so we just return the results as is.
+  // Client-side sorting is removed to reflect backend dependency.
   return searchResults.value;
 });
 
@@ -403,7 +501,7 @@ const sortedResults = computed(() => {
 const totalPages = computed(() => {
   if (!rawResults.value?.data?.searchInformation?.totalResults) return 0;
   const total = parseInt(rawResults.value.data.searchInformation.totalResults.replace(/,/g, ''), 10);
-  return Math.min(Math.ceil(total / 10), 10);
+  return Math.min(Math.ceil(total / 10), 10); // Limit to 10 pages
 });
 
 const paginationPages = computed(() => {
@@ -431,21 +529,34 @@ const highlightText = (text: string, query: string) => {
   return text.replace(regex, '<strong class="font-semibold bg-yellow-100 dark:bg-yellow-700/50 rounded-sm px-0.5">$1</strong>');
 };
 
+const formatAiContent = (content: string) => {
+  if (!content) return '';
+  // Sanitize basic HTML to be safe with v-html
+  let sanitized = content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // Convert markdown-like bold to <strong> tags
+  return sanitized.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+};
+
 // --- LIFECYCLE & WATCHERS ---
 onMounted(() => {
   if (searchQuery.value) {
-    performSearch(currentPage.value, false);
-  } else {
-    router.push('/');
+    performSearch(currentPage.value, true);
   }
 });
 
-watch(() => route.query, (newQuery) => {
+onUnmounted(() => {
+  if (pollingInterval.value) {
+    clearInterval(pollingInterval.value);
+  }
+});
+
+watch(() => route.query, (newQuery, oldQuery) => {
   const newSearchQuery = newQuery.q as string || '';
   const newPage = parseInt(newQuery.page as string) || 1;
   const newType = (newQuery.type as 'web' | 'image') || 'web';
 
-  if (newSearchQuery !== searchQuery.value || newPage !== currentPage.value || newType !== searchType.value) {
+  // Only perform search if query actually changes to avoid redundant calls on initial load
+  if (newSearchQuery && (newSearchQuery !== oldQuery.q || newPage !== oldQuery.page || newType !== oldQuery.type)) {
     searchQuery.value = newSearchQuery;
     currentPage.value = newPage;
     searchType.value = newType;
@@ -455,7 +566,6 @@ watch(() => route.query, (newQuery) => {
 </script>
 
 <style>
-/* For line-clamp fallback if not supported or for more complex cases */
 .line-clamp-2 {
   display: -webkit-box;
   -webkit-box-orient: vertical;

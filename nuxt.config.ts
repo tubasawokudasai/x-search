@@ -19,6 +19,7 @@ export default defineNuxtConfig({
     googleApiKey: '',
     searchEngineId: '',
     braveApiKey: '',
+    geminiApiKey: '',
     public: {
       // 客户端需要的环境变量
 
