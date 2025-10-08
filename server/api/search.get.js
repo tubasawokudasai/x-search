@@ -1,3 +1,5 @@
+// server/api/search.post.ts
+
 import {defineEventHandler, getQuery} from 'h3';
 import {useRuntimeConfig} from '#imports';
 import NodeCache from 'node-cache';
@@ -31,7 +33,8 @@ const SEARCH_SORT = {
 
 // ========== END: 常量、枚举和辅助工具定义 ==========
 
-// 缓存配置
+
+// 原有缓存配置
 const searchCache = new NodeCache({stdTTL: CACHE_TTL_SECONDS});
 
 /**
@@ -383,7 +386,7 @@ export default defineEventHandler(async (event) => {
                         generatedAt: Date.now()
                     });
                 }
-            })().then(); // 立即调用异步函数
+            })().then();
         }
         // === 结束 AI 任务注册逻辑 ===
 
@@ -396,10 +399,25 @@ export default defineEventHandler(async (event) => {
                 return; // 跳过没有链接的结果
             }
 
+            // --- 关键修改：规范化 URL ---
+            let normalizedLink;
+            try {
+                // 尝试解码 URL，排除查询参数和哈希部分
+                const urlObj = new URL(result.link);
+                urlObj.search = ''; //清除查询参数
+                urlObj.hash = ''; //清除哈希
+                normalizedLink = decodeURIComponent(urlObj.href);
+            } catch (e) {
+                // 如果 URL 不合法，直接使用原始链接作为 fallback，但可能会导致去重失败
+                console.warn(`[De-duplication] Failed to normalize URL '${result.link}':`, e.message);
+                normalizedLink = result.link;
+            }
+            // --- 规范化处理结束 ---
+
             const currentScoreContribution = 1 / (RRF_K + result.originalRank);
 
-            if (uniqueResultsMap.has(result.link)) {
-                const existingResult = uniqueResultsMap.get(result.link);
+            if (uniqueResultsMap.has(normalizedLink)) {
+                const existingResult = uniqueResultsMap.get(normalizedLink);
                 existingResult.rrfScore = (existingResult.rrfScore || 0) + currentScoreContribution;
                 // 可以选择在此处更新其他字段，如优先保留更长的 snippet 等
                 if (result.snippet && existingResult.snippet.length < result.snippet.length) {
@@ -411,7 +429,8 @@ export default defineEventHandler(async (event) => {
                     existingResult.contextLink = result.contextLink;
                 }
             } else {
-                uniqueResultsMap.set(result.link, {...result, rrfScore: currentScoreContribution});
+                // 存储规范化后的链接，但保留原始链接在结果对象中
+                uniqueResultsMap.set(normalizedLink, {...result, rrfScore: currentScoreContribution});
             }
         });
 
@@ -431,7 +450,7 @@ export default defineEventHandler(async (event) => {
             items: uniqueResults.map(item => {
                 const clientItem = {
                     title: item.title,
-                    link: item.link,
+                    link: item.link, // 返回原始链接
                     displayLink: item.link?.replace(/^(https?:\/\/(www\.)?)/, '').split('/')[0] || '',
                     snippet: item.snippet,
                     source: item.source,
