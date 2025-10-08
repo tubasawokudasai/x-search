@@ -1,15 +1,38 @@
-// server/api/search.post.ts (或对应搜索路由文件)
-import {defineEventHandler, getQuery, readBody} from 'h3';
+import {defineEventHandler, getQuery} from 'h3';
 import {useRuntimeConfig} from '#imports';
 import NodeCache from 'node-cache';
-
-// 导入 AI 触发器和 Gemini 调用工具
 import {callGeminiChat} from "~~/server/utils/gemini-api.js";
 import aiOverviewTrigger from "~~/server/utils/ai-overview-trigger.js";
 
-// 原有缓存和常量配置
-const searchCache = new NodeCache({stdTTL: 7200});
+// ========== START: 常量、枚举和辅助工具定义 ==========
+
+// --- 常量配置 ---
+const CACHE_TTL_SECONDS = 7200; // 缓存有效期，2小时
+const REQUEST_TIMEOUT_MS = 5000; // 外部API请求超时时间，5秒
+const GOOGLE_ITEMS_PER_PAGE = 10; // Google CSE 每页返回的条目数
 const RRF_K = 60; // Reciprocal Rank Fusion 常量
+
+// --- 搜索源和类型常量，替代枚举 ---
+const SEARCH_SOURCE = {
+    GOOGLE: 'google',
+    BRAVE: 'brave',
+    GENERIC_AI: 'generic-ai',
+};
+
+const SEARCH_TYPE = {
+    WEB: 'web',
+    IMAGE: 'image',
+};
+
+const SEARCH_SORT = {
+    RELEVANCE: 'relevance',
+    DATE: 'date',
+};
+
+// ========== END: 常量、枚举和辅助工具定义 ==========
+
+// 缓存配置
+const searchCache = new NodeCache({stdTTL: CACHE_TTL_SECONDS});
 
 /**
  * 从逗号分隔的原始密钥字符串中安全地选择一个随机的 API 密钥。
@@ -30,18 +53,13 @@ function selectRandomApiKey(rawKeys) {
 
 /**
  * 执行 Google Custom Search Engine 搜索
- * 【注意】此函数已移除所有 AI 相关的参数和逻辑
  * @param {string} q - 搜索关键词
  * @param {number} page - 页码 (Google CSE 每页 10 条)
  * @param {string} sort - 排序方式 (e.g., 'relevance', 'date')
  * @param {string} type - 搜索类型 (e.g., 'web', 'image')
  * @param {number|undefined} startIndex - Google 搜索的起始索引，优先级高于 page 参数
  * @param {object} runtimeConfig - 运行时配置（含 API 密钥等）
- * @returns {Promise<{
- * results: SearchResult[],
- * time: number,
- * error: string|null
- * }>} - 含初步结果的响应
+ * @returns {Promise<object>} - 含初步结果的响应
  */
 async function searchGoogle(q, page, sort, type, startIndex, runtimeConfig) {
     const startTime = Date.now();
@@ -51,39 +69,48 @@ async function searchGoogle(q, page, sort, type, startIndex, runtimeConfig) {
         const searchEngineId = runtimeConfig.searchEngineId;
 
         if (!googleApiKey || !searchEngineId) {
-            console.warn('Google API 密钥或搜索引擎 ID 未配置。Google Search 将被跳过。');
+            console.warn('[Google Search] API 密钥或搜索引擎 ID 未配置。Google Search 将被跳过。');
             return {
                 results: [], time: Date.now() - startTime, error: 'Google API Key or Search Engine ID not configured'
             };
         }
 
-        let url = `https://customsearch.googleapis.com/customsearch/v1?key=${googleApiKey}&cx=${searchEngineId}&q=${encodeURIComponent(q.toString())}`;
-        url += `&gl=hk&hl=zh-HK&lr=lang_zh-HK`;
-        url += startIndex ? `&start=${startIndex}` : `&start=${(page - 1) * 10 + 1}`;
-        if (type === 'image') url += `&searchType=image`; else if (sort === 'date') url += `&sort=date`;
+        const url = new URL(`https://customsearch.googleapis.com/customsearch/v1`);
+        url.searchParams.append('key', googleApiKey);
+        url.searchParams.append('cx', searchEngineId);
+        url.searchParams.append('q', q);
 
-        const fetchOptions = {signal: AbortSignal.timeout(5000)};
+        url.searchParams.append('gl', 'hk');
+        url.searchParams.append('hl', 'zh-HK');
+        url.searchParams.append('lr', 'lang_zh-HK');
+        url.searchParams.append('start', (startIndex ? startIndex : (page - 1) * GOOGLE_ITEMS_PER_PAGE + 1).toString());
 
-        const googleResponse = await makeTimedExternalApiCall(url, fetchOptions, 'Google Search', (data) => {
+        if (type === SEARCH_TYPE.IMAGE) {
+            url.searchParams.append('searchType', 'image');
+        } else if (sort === SEARCH_SORT.DATE) {
+            url.searchParams.append('sort', 'date');
+        }
+
+        const fetchOptions = {signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)};
+
+        return await makeTimedExternalApiCall(url.toString(), fetchOptions, SEARCH_SOURCE.GOOGLE, (data) => {
             if (data && data.items) {
                 return data.items.map((item, index) => ({
                     title: item.title,
                     snippet: item.snippet || item.title || '',
                     link: item.link,
                     originalRank: index + 1,
-                    source: 'google',
+                    source: SEARCH_SOURCE.GOOGLE,
                     originalItem: item,
-                    contextLink: type === 'image' ? (item.image?.contextLink ?? null) : null,
-                    thumbnailLink: type === 'image' ? (item.image?.thumbnailLink ?? null) : null,
+                    contextLink: type === SEARCH_TYPE.IMAGE ? (item.image?.contextLink ?? null) : null,
+                    thumbnailLink: type === SEARCH_TYPE.IMAGE ? (item.image?.thumbnailLink ?? null) : null,
                 }));
             }
             return [];
         });
 
-        return googleResponse;
-
     } catch (error) {
-        console.error('Google Search 初始化或构建请求失败:', error.message);
+        console.error('[Google Search] 初始化或构建请求失败:', error.message);
         return {
             results: [], time: Date.now() - startTime, error: error.message,
         };
@@ -95,7 +122,7 @@ async function searchGoogle(q, page, sort, type, startIndex, runtimeConfig) {
  * @param {string} q - 搜索关键词
  * @param {string} type - 搜索类型 (e.g., 'web', 'image')
  * @param {object} runtimeConfig - 运行时配置
- * @returns {Promise<SearchAPIResponse>} - 标准化搜索结果
+ * @returns {Promise<object>} - 标准化搜索结果
  */
 async function searchBrave(q, type, runtimeConfig) {
     const startTime = Date.now();
@@ -103,23 +130,25 @@ async function searchBrave(q, type, runtimeConfig) {
         const braveApiKey = selectRandomApiKey(runtimeConfig.braveApiKey);
 
         if (!braveApiKey) {
-            console.warn('Brave API 密钥未配置。Brave Search 将被跳过。');
+            console.warn('[Brave Search] Brave API 密钥未配置。Brave Search 将被跳过。');
             return {results: [], time: Date.now() - startTime, error: 'Brave API Key not configured'};
         }
 
-        const baseUrl = type === 'image' ? `https://api.search.brave.com/res/v1/images/search` : `https://api.search.brave.com/res/v1/web/search`;
+        const baseUrl = type === SEARCH_TYPE.IMAGE ? `https://api.search.brave.com/res/v1/images/search` : `https://api.search.brave.com/res/v1/web/search`;
 
         const url = new URL(baseUrl);
         url.searchParams.append('q', q);
 
         const fetchOptions = {
             headers: {
-                'X-Subscription-Token': braveApiKey, 'Accept': 'application/json',
-            }, signal: AbortSignal.timeout(5000)
+                'X-Subscription-Token': braveApiKey,
+                'Accept': 'application/json',
+            },
+            signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
         };
 
-        return await makeTimedExternalApiCall(url.toString(), fetchOptions, 'Brave Search', (data) => {
-            if (type === 'image' && data && data.results) {
+        return await makeTimedExternalApiCall(url.toString(), fetchOptions, SEARCH_SOURCE.BRAVE, (data) => {
+            if (type === SEARCH_TYPE.IMAGE && data && data.results) {
                 return data.results.map((item, index) => {
                     const titleFallback = item.title || 'Image Result';
                     const snippetFallback = item.title || 'No description available.';
@@ -130,7 +159,7 @@ async function searchBrave(q, type, runtimeConfig) {
                         thumbnailLink: item.thumbnail?.src ?? null,
                         contextLink: item.url,
                         originalRank: index + 1,
-                        source: 'brave',
+                        source: SEARCH_SOURCE.BRAVE,
                         originalItem: item
                     };
                 });
@@ -140,7 +169,7 @@ async function searchBrave(q, type, runtimeConfig) {
                     snippet: item.description,
                     link: item.url,
                     originalRank: index + 1,
-                    source: 'brave',
+                    source: SEARCH_SOURCE.BRAVE,
                     originalItem: item,
                     contextLink: null,
                     thumbnailLink: null,
@@ -149,7 +178,7 @@ async function searchBrave(q, type, runtimeConfig) {
             return [];
         });
     } catch (error) {
-        console.error('Brave Search 初始化或构建请求失败:', error.message);
+        console.error('[Brave Search] 初始化或构建请求失败:', error.message);
         return {results: [], time: Date.now() - startTime, error: error.message};
     }
 }
@@ -158,9 +187,9 @@ async function searchBrave(q, type, runtimeConfig) {
  * 封装通用的外部 API 调用逻辑
  * @param {string} url - 请求 URL
  * @param {RequestInit} options - Fetch 选项
- * @param {string} apiName - API 名称（用于日志）
- * @param {(rawData: any) => SearchResult[]} dataExtractor - 结果提取函数
- * @returns {Promise<SearchAPIResponse>} - 标准化响应
+ * @param {string} apiName - API 名称（用于日志，使用常量）
+ * @param {(rawData: any) => Array<object>} dataExtractor - 结果提取函数
+ * @returns {Promise<object>} - 标准化响应
  */
 async function makeTimedExternalApiCall(url, options, apiName, dataExtractor) {
     const startTime = Date.now();
@@ -178,9 +207,10 @@ async function makeTimedExternalApiCall(url, options, apiName, dataExtractor) {
         return {results, time: duration, error: null};
     } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') {
-            throw error;
+            console.warn(`[${apiName}] API请求超时:`, error.message);
+            return {results: [], time: Date.now() - startTime, error: '请求超时'};
         }
-        console.error(`${apiName} API调用失败:`, error.message);
+        console.error(`[${apiName}] API调用失败:`, error.message);
         return {results: [], time: Date.now() - startTime, error: error.message};
     }
 }
@@ -191,13 +221,17 @@ export default defineEventHandler(async (event) => {
     const handlerStartTime = Date.now();
 
     try {
-        // 步骤 1：解析查询参数 (保持不变)
+        // 步骤 1：解析和校验查询参数
         const rawQuery = getQuery(event);
         const q = typeof rawQuery.q === 'string' ? rawQuery.q.trim() : undefined;
-        const page = parseInt(rawQuery.page) || 1;
-        const sort = typeof rawQuery.sort === 'string' ? rawQuery.sort : 'relevance';
-        const type = typeof rawQuery.type === 'string' ? rawQuery.type : 'web';
-        const startIndex = rawQuery.startIndex ? parseInt(rawQuery.startIndex) : undefined;
+        let page = parseInt(rawQuery.page);
+        let startIndex = rawQuery.startIndex ? parseInt(rawQuery.startIndex) : undefined;
+        const sort = typeof rawQuery.sort === 'string' && Object.values(SEARCH_SORT).includes(rawQuery.sort)
+            ? rawQuery.sort
+            : SEARCH_SORT.RELEVANCE;
+        const type = typeof rawQuery.type === 'string' && Object.values(SEARCH_TYPE).includes(rawQuery.type)
+            ? rawQuery.type
+            : SEARCH_TYPE.WEB;
 
         if (!q) {
             return {
@@ -208,16 +242,28 @@ export default defineEventHandler(async (event) => {
             };
         }
 
+        if (isNaN(page) || page < 1) {
+            page = 1; // 默认页码或强制为有效值
+            console.warn(`[Handler] Invalid page number '${rawQuery.page}'. Defaulting to 1.`);
+        }
+        if (startIndex !== undefined && (isNaN(startIndex) || startIndex < 1)) {
+            startIndex = undefined; // 忽略无效的 startIndex
+            console.warn(`[Handler] Invalid startIndex '${rawQuery.startIndex}'. Ignoring.`);
+        }
+
         const runtimeConfig = useRuntimeConfig();
 
-        // 步骤 2：检查缓存 (保持不变)
+        // 步骤 2：检查缓存
         const cacheKey = JSON.stringify({q, page, sort, type, startIndex});
         const cachedResult = searchCache.get(cacheKey);
 
         if (cachedResult) {
             console.log(`[Cache] 命中并返回缓存结果 for key: ${cacheKey}`);
             return {
-                success: true, data: cachedResult, totalResponseTime: Date.now() - handlerStartTime, apiTimings: null // 来自缓存，无实时 API 计时
+                success: true,
+                data: cachedResult,
+                totalResponseTime: Date.now() - handlerStartTime,
+                apiTimings: {[SEARCH_SOURCE.GOOGLE]: null, [SEARCH_SOURCE.BRAVE]: null} // 来自缓存，无实时 API 计时
             };
         }
 
@@ -229,13 +275,14 @@ export default defineEventHandler(async (event) => {
         let aiTaskId = null;
 
         if (geminiApiKey.trim() !== '') {
+            // aiOverviewTrigger.shouldTriggerAIOverview 假定是从 Nuxt 配置中可用
             const aiTriggerResult = aiOverviewTrigger.shouldTriggerAIOverview(q);
             shouldTriggerAI = aiTriggerResult.trigger;
             console.log(`[AI Trigger] Query [${q}] -> Should trigger AI? ${shouldTriggerAI}`);
 
             if (shouldTriggerAI) {
                 // 提前生成 AI 任务 ID
-                aiTaskId = `generic-ai-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+                aiTaskId = `${SEARCH_SOURCE.GENERIC_AI}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
             }
         } else {
             console.warn('[AI Trigger] Gemini API 密钥未配置，跳过 AI 概览触发判断和任务启动');
@@ -258,68 +305,85 @@ export default defineEventHandler(async (event) => {
             console.warn("[Config] 未找到 Brave API 密钥，跳过 Brave 搜索。");
         }
 
-        if (searchPromises.length === 0) {
-            // 如果没有配置任何搜索引擎，但触发了 AI，应该继续 AI 任务
-            if (!shouldTriggerAI) {
-                throw new Error("所有搜索引擎均未配置，且 AI 未触发，无法执行搜索。");
-            }
-        } else {
-            await Promise.all(searchPromises);
+        if (searchPromises.length === 0 && !shouldTriggerAI && aiTaskId === null) {
+            // 如果没有配置任何搜索引擎，且未触发 AI 任务，则抛出错误
+            throw new Error("所有搜索引擎均未配置，且 AI 未触发，无法执行搜索。");
         }
 
-        // 重新获取搜索结果（因为它们可能在 searchPromises 中）
-        const searchResults = await Promise.all(searchPromises);
+        // 等待所有搜索引擎 API 调用完成 (如果有的话)
+        const searchApiResults = searchPromises.length > 0 ? await Promise.all(searchPromises) : [];
 
         // 步骤 5：处理并聚合结果
-        const googleSearchData = searchResults.find(res => res.results.length > 0 && res.results[0]?.source === 'google') || {
+        const googleSearchData = searchApiResults.find(res => res.results.length > 0 && res.results[0]?.source === SEARCH_SOURCE.GOOGLE) || {
             results: [],
             time: 0,
             error: null
         };
-        const braveSearchData = searchResults.find(res => res.results.length > 0 && res.results[0]?.source === 'brave') || {
+        const braveSearchData = searchApiResults.find(res => res.results.length > 0 && res.results[0]?.source === SEARCH_SOURCE.BRAVE) || {
             results: [],
             time: 0,
             error: null
         };
 
-        if (googleSearchData.error) console.warn(`Google 搜索错误: ${googleSearchData.error}`);
-        if (braveSearchData.error) console.warn(`Brave 搜索错误: ${braveSearchData.error}`);
+        if (googleSearchData.error) console.warn(`[Google Search] 发现错误: ${googleSearchData.error}`);
+        if (braveSearchData.error) console.warn(`[Brave Search] 发现错误: ${braveSearchData.error}`);
 
-        // === 步骤 5.5：AI 任务注册逻辑===
+        console.log(`[Google Search] Time: ${googleSearchData.time}ms, Results: ${googleSearchData.results.length}`);
+        console.log(`[Brave Search] Time: ${braveSearchData.time}ms, Results: ${braveSearchData.results.length}`);
+
+
+        // === 步骤 5.5：AI 任务注册逻辑 ===
         if (shouldTriggerAI && aiTaskId) {
-
-            const runtime = globalThis;
-            runtime.__pendingAIReplies = runtime.__pendingAIReplies || new Map();
+            // 确保 globalThis.__pendingAIReplies 存在
+            globalThis.__pendingAIReplies = globalThis.__pendingAIReplies || new Map();
 
             const aiPrompt = `基于搜索关键词「${q}」，生成结构化 AI 概览：请紧扣关键词核心信息，用简洁语言分点（如要点 1、要点 2）呈现，不展开无关内容，快速聚焦核心，避免发散。语言需与关键词语言一致。`;
+
+            // 提前在 Map 中标记为 pending 状态
+            globalThis.__pendingAIReplies.set(aiTaskId, {
+                taskId: aiTaskId,
+                query: q,
+                source: SEARCH_SOURCE.GENERIC_AI,
+                status: 'pending',
+                generatedAt: Date.now()
+            });
 
             // 异步执行 Gemini 调用（不阻塞当前函数返回）
             (async () => {
                 try {
-                    console.log(`独立 AI 任务 [${aiTaskId}] 开始执行...`);
+                    console.log(`[AI Task ${aiTaskId}] 开始执行...`);
+                    const validGeminiApiKey = selectRandomApiKey(geminiApiKey); // 确保使用有效的API密钥
 
-                    const geminiResult = await callGeminiChat(aiPrompt, geminiApiKey);
+                    if (!validGeminiApiKey) {
+                        throw new Error("Gemini API 密钥不可用或配置无效。");
+                    }
+                    // callGeminiChat 假定是从 Nuxt 配置中可用
+                    const geminiResult = await callGeminiChat(aiPrompt, validGeminiApiKey);
                     const aiContent = geminiResult?.choices?.[0]?.message?.content || 'AI 未生成有效回复';
 
-                    runtime.__pendingAIReplies.set(aiTaskId, {
-                        taskId: aiTaskId, query: q, source: 'generic-ai', // 标记为通用 AI
-                        status: 'completed', data: {
-                            aiOverview: aiContent, // 不再包含 googlePreliminary 或任何搜索结果上下文
-                        }, generatedAt: Date.now()
-                    });
-                    console.log(`独立 AI 任务 [${aiTaskId}] 完成`);
-                } catch (aiError) {
-                    console.error(`独立 AI 任务 [${aiTaskId}] 失败：`, aiError.message);
-                    runtime.__pendingAIReplies.set(aiTaskId, {
+                    globalThis.__pendingAIReplies.set(aiTaskId, {
                         taskId: aiTaskId,
                         query: q,
-                        source: 'generic-ai',
+                        source: SEARCH_SOURCE.GENERIC_AI,
+                        status: 'completed',
+                        data: {
+                            aiOverview: aiContent,
+                        },
+                        generatedAt: Date.now()
+                    });
+                    console.log(`[AI Task ${aiTaskId}] 完成`);
+                } catch (aiError) {
+                    console.error(`[AI Task ${aiTaskId}] 失败：`, aiError.message);
+                    globalThis.__pendingAIReplies.set(aiTaskId, {
+                        taskId: aiTaskId,
+                        query: q,
+                        source: SEARCH_SOURCE.GENERIC_AI,
                         status: 'failed',
                         error: aiError.message,
                         generatedAt: Date.now()
                     });
                 }
-            })().then();
+            })().then(); // 立即调用异步函数
         }
         // === 结束 AI 任务注册逻辑 ===
 
@@ -328,19 +392,30 @@ export default defineEventHandler(async (event) => {
         const uniqueResultsMap = new Map();
 
         allResults.forEach(result => {
-            if (result.link && !uniqueResultsMap.has(result.link)) {
-                uniqueResultsMap.set(result.link, {...result, rrfScore: 0});
+            if (!result.link) {
+                return; // 跳过没有链接的结果
+            }
+
+            const currentScoreContribution = 1 / (RRF_K + result.originalRank);
+
+            if (uniqueResultsMap.has(result.link)) {
+                const existingResult = uniqueResultsMap.get(result.link);
+                existingResult.rrfScore = (existingResult.rrfScore || 0) + currentScoreContribution;
+                // 可以选择在此处更新其他字段，如优先保留更长的 snippet 等
+                if (result.snippet && existingResult.snippet.length < result.snippet.length) {
+                    existingResult.snippet = result.snippet;
+                }
+                // 对于图片搜索，更新图片信息
+                if (type === SEARCH_TYPE.IMAGE && result.thumbnailLink && !existingResult.thumbnailLink) {
+                    existingResult.thumbnailLink = result.thumbnailLink;
+                    existingResult.contextLink = result.contextLink;
+                }
+            } else {
+                uniqueResultsMap.set(result.link, {...result, rrfScore: currentScoreContribution});
             }
         });
 
-        allResults.forEach(result => {
-            if (result.link && uniqueResultsMap.has(result.link)) {
-                const score = 1 / (RRF_K + result.originalRank);
-                uniqueResultsMap.get(result.link).rrfScore += score;
-            }
-        });
-
-        const uniqueResults = Array.from(uniqueResultsMap.values()).sort((a, b) => b.rrfScore - a.rrfScore);
+        const uniqueResults = Array.from(uniqueResultsMap.values()).sort((a, b) => (b.rrfScore || 0) - (a.rrfScore || 0));
 
         // 步骤 7：构建聚合响应
         const validApiTimes = [googleSearchData.time, braveSearchData.time].filter(t => t > 0);
@@ -352,23 +427,27 @@ export default defineEventHandler(async (event) => {
                 formattedSearchTime: `${(averageSearchTime / 1000).toFixed(2)} seconds`,
                 totalResults: uniqueResults.length.toString(),
                 formattedTotalResults: `${uniqueResults.length} results`
-            }, items: uniqueResults.map(item => {
-                const baseItem = {
+            },
+            items: uniqueResults.map(item => {
+                const clientItem = {
                     title: item.title,
                     link: item.link,
                     displayLink: item.link?.replace(/^(https?:\/\/(www\.)?)/, '').split('/')[0] || '',
                     snippet: item.snippet,
                     source: item.source,
                 };
-                if (type === 'image') {
-                    baseItem.image = {
-                        contextLink: item.contextLink ?? '', thumbnailLink: item.thumbnailLink ?? '',
+                if (type === SEARCH_TYPE.IMAGE && item.contextLink && item.thumbnailLink) {
+                    clientItem.image = {
+                        contextLink: item.contextLink,
+                        thumbnailLink: item.thumbnailLink,
                     };
                 }
-                return baseItem;
-            }), aiTask: {
-                // 只有成功触发且任务ID存在时才标记为 true
-                hasAI: shouldTriggerAI && !!aiTaskId, taskId: aiTaskId, source: 'generic' // 标记为通用 AI
+                return clientItem;
+            }),
+            aiTask: {
+                hasAI: shouldTriggerAI && !!aiTaskId,
+                taskId: aiTaskId,
+                source: SEARCH_SOURCE.GENERIC_AI
             }
         };
 
@@ -376,13 +455,17 @@ export default defineEventHandler(async (event) => {
         searchCache.set(cacheKey, aggregatedResponse);
 
         return {
-            success: true, data: aggregatedResponse, totalResponseTime: Date.now() - handlerStartTime, apiTimings: {
-                google: googleSearchData.time || null, brave: braveSearchData.time || null,
+            success: true,
+            data: aggregatedResponse,
+            totalResponseTime: Date.now() - handlerStartTime,
+            apiTimings: {
+                [SEARCH_SOURCE.GOOGLE]: googleSearchData.time || null,
+                [SEARCH_SOURCE.BRAVE]: braveSearchData.time || null,
             },
         };
 
     } catch (error) {
-        console.error('搜索代理错误:', error);
+        console.error('[Handler] 搜索代理错误:', error);
         let statusMessage = error.message || '服务端处理搜索请求失败';
         if (error instanceof DOMException && error.name === 'AbortError') {
             statusMessage = '请求超时，请稍后再试';
@@ -391,7 +474,10 @@ export default defineEventHandler(async (event) => {
         }
 
         return {
-            success: false, error: statusMessage, totalResponseTime: Date.now() - handlerStartTime, apiTimings: null, // Error occurred, timings may be incomplete
+            success: false,
+            error: statusMessage,
+            totalResponseTime: Date.now() - handlerStartTime,
+            apiTimings: null,
         };
     }
 });
