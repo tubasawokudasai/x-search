@@ -22,8 +22,7 @@
                 v-model="searchQuery"
                 type="text"
                 class="w-full h-12 pl-12 pr-4 text-base border border-gray-300 dark:border-gray-600 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 shadow-sm focus:shadow-md"
-                @keyup.enter="performSearch(1, true)"
-                @input="handleInput"
+                @keyup.enter="triggerNewSearch" @input="handleInput"
                 @blur="showSuggestions = false"
                 placeholder="Search with xSearch"
             />
@@ -337,6 +336,21 @@ const aiError = ref<string | null>(null);
 const pollingInterval = ref<NodeJS.Timeout | null>(null);
 
 
+// --- NEW HELPER: Trigger New Search by Updating Route ---
+const triggerNewSearch = () => {
+  if (!searchQuery.value) return;
+
+  // 仅更新路由。watch 监听器会接收到变化并触发 performSearch
+  router.push({
+    query: {
+      q: searchQuery.value,
+      type: searchType.value,
+      page: '1' // 新搜索从第一页开始
+    }
+  });
+}
+
+
 // --- SEARCH & DATA FETCHING ---
 const performSearch = async (page: number = 1, isNewSearch: boolean = false) => {
   if (!searchQuery.value) return;
@@ -349,14 +363,15 @@ const performSearch = async (page: number = 1, isNewSearch: boolean = false) => 
     aiOverview.value = null;
     isAiLoading.value = false;
     aiError.value = null;
+
+    // 移除 router.push，避免与 watch 监听器形成循环
+    // if (isNewSearch) {
+    //   router.push({ query: { q: searchQuery.value, type: searchType.value, page: currentPage.value.toString() } });
+    // }
   }
 
   currentPage.value = page;
   showSuggestions.value = false;
-
-  if (isNewSearch) {
-    router.push({ query: { q: searchQuery.value, type: searchType.value, page: currentPage.value.toString() } });
-  }
 
   const startIndex = (page - 1) * 10 + 1;
 
@@ -504,20 +519,28 @@ const handleInput = async () => {
   }
 };
 
+// 更改: 调用 triggerNewSearch 而非 performSearch
 const selectSuggestion = (suggestion: string) => {
   searchQuery.value = suggestion;
-  performSearch(1, true);
+  triggerNewSearch();
 };
 
+// 更改: 调用 triggerNewSearch 而非 performSearch
 const searchWithSuggestion = (suggestion: string) => {
   searchQuery.value = suggestion;
-  performSearch(1, true);
+  triggerNewSearch();
 };
 
+// 更改: 仅更新路由
 const changeSearchType = (type: 'web' | 'image') => {
   if (searchType.value !== type) {
-    searchType.value = type;
-    performSearch(1, true);
+    router.push({
+      query: {
+        q: searchQuery.value,
+        type: type,
+        page: '1' // 切换类型时重置为第1页
+      }
+    });
   }
 };
 
@@ -558,9 +581,16 @@ const paginationPages = computed(() => {
   return pages;
 });
 
+// 更改: 仅更新路由
 const goToPage = (page: number) => {
   if (page >= 1 && page <= totalPages.value && page !== currentPage.value) {
-    performSearch(page, true);
+    router.push({
+      query: {
+        q: searchQuery.value,
+        type: searchType.value,
+        page: page.toString()
+      }
+    });
   }
 };
 
@@ -585,6 +615,7 @@ const formatAiContent = (content: string) => {
 
 // --- LIFECYCLE & WATCHERS ---
 onMounted(() => {
+  // 首次加载页面时，从路由参数触发搜索
   if (searchQuery.value) {
     performSearch(currentPage.value, true);
   }
@@ -594,6 +625,7 @@ onUnmounted(() => {
   stopPolling(); // 组件卸载时停止轮询
 });
 
+// 监听路由变化，这是唯一触发 performSearch(isNewSearch: true) 的地方
 watch(() => route.query, (newQuery, oldQuery) => {
   const newSearchQuery = newQuery.q as string || '';
   const newPage = parseInt(newQuery.page as string) || 1;
@@ -604,6 +636,8 @@ watch(() => route.query, (newQuery, oldQuery) => {
     searchQuery.value = newSearchQuery;
     currentPage.value = newPage;
     searchType.value = newType;
+
+    // 从路由变化中触发搜索，确保只执行一次
     performSearch(newPage, true);
   }
 });

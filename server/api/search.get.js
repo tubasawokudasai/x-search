@@ -53,6 +53,45 @@ function selectRandomApiKey(rawKeys) {
     return apiKeys[Math.floor(Math.random() * apiKeys.length)];
 }
 
+/**
+ * 封装通用的外部 API 调用逻辑
+ * @param {string} url - 请求 URL
+ * @param {RequestInit} options - Fetch 选项
+ * @param {string} apiName - API 名称（用于日志，使用常量）
+ * @param {(rawData: any) => Array<object>} dataExtractor - 结果提取函数
+ * @param {boolean} [returnRawData=false] - 是否返回原始数据对象 (NEW)
+ * @returns {Promise<object>} - 标准化响应
+ */
+async function makeTimedExternalApiCall(url, options, apiName, dataExtractor, returnRawData = false) {
+    const startTime = Date.now();
+    try {
+        const response = await fetch(url, options);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`${apiName} API responded with status ${response.status}: ${errorText}`);
+        }
+
+        const rawData = await response.json();
+        const results = dataExtractor(rawData);
+        const duration = Date.now() - startTime;
+
+        const responseObj = {results, time: duration, error: null};
+        if (returnRawData) {
+            responseObj.originalRawData = rawData; // 新增返回原始数据
+        }
+        return responseObj;
+
+    } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            console.warn(`[${apiName}] API请求超时:`, error.message);
+            return {results: [], time: Date.now() - startTime, error: '请求超时'};
+        }
+        console.error(`[${apiName}] API调用失败:`, error.message);
+        return {results: [], time: Date.now() - startTime, error: error.message};
+    }
+}
+
 
 /**
  * 执行 Google Custom Search Engine 搜索
@@ -62,7 +101,7 @@ function selectRandomApiKey(rawKeys) {
  * @param {string} type - 搜索类型 (e.g., 'web', 'image')
  * @param {number|undefined} startIndex - Google 搜索的起始索引，优先级高于 page 参数
  * @param {object} runtimeConfig - 运行时配置（含 API 密钥等）
- * @returns {Promise<object>} - 含初步结果的响应
+ * @returns {Promise<object>} - 含初步结果和原始数据的响应 (已修正)
  */
 async function searchGoogle(q, page, sort, type, startIndex, runtimeConfig) {
     const startTime = Date.now();
@@ -96,6 +135,7 @@ async function searchGoogle(q, page, sort, type, startIndex, runtimeConfig) {
 
         const fetchOptions = {signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)};
 
+        // 修正: 传递 true 以返回原始数据
         return await makeTimedExternalApiCall(url.toString(), fetchOptions, SEARCH_SOURCE.GOOGLE, (data) => {
             if (data && data.items) {
                 return data.items.map((item, index) => ({
@@ -110,7 +150,7 @@ async function searchGoogle(q, page, sort, type, startIndex, runtimeConfig) {
                 }));
             }
             return [];
-        });
+        }, true); // <- 修正点
 
     } catch (error) {
         console.error('[Google Search] 初始化或构建请求失败:', error.message);
@@ -186,38 +226,6 @@ async function searchBrave(q, type, runtimeConfig) {
     }
 }
 
-/**
- * 封装通用的外部 API 调用逻辑
- * @param {string} url - 请求 URL
- * @param {RequestInit} options - Fetch 选项
- * @param {string} apiName - API 名称（用于日志，使用常量）
- * @param {(rawData: any) => Array<object>} dataExtractor - 结果提取函数
- * @returns {Promise<object>} - 标准化响应
- */
-async function makeTimedExternalApiCall(url, options, apiName, dataExtractor) {
-    const startTime = Date.now();
-    try {
-        const response = await fetch(url, options);
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`${apiName} API responded with status ${response.status}: ${errorText}`);
-        }
-
-        const rawData = await response.json();
-        const results = dataExtractor(rawData);
-        const duration = Date.now() - startTime;
-        return {results, time: duration, error: null};
-    } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') {
-            console.warn(`[${apiName}] API请求超时:`, error.message);
-            return {results: [], time: Date.now() - startTime, error: '请求超时'};
-        }
-        console.error(`[${apiName}] API调用失败:`, error.message);
-        return {results: [], time: Date.now() - startTime, error: error.message};
-    }
-}
-
 
 // 主事件处理器
 export default defineEventHandler(async (event) => {
@@ -278,7 +286,6 @@ export default defineEventHandler(async (event) => {
         let aiTaskId = null;
 
         if (geminiApiKey.trim() !== '') {
-            // aiOverviewTrigger.shouldTriggerAIOverview 假定是从 Nuxt 配置中可用
             const aiTriggerResult = aiOverviewTrigger.shouldTriggerAIOverview(q);
             shouldTriggerAI = aiTriggerResult.trigger;
             console.log(`[AI Trigger] Query [${q}] -> Should trigger AI? ${shouldTriggerAI}`);
@@ -317,25 +324,25 @@ export default defineEventHandler(async (event) => {
         const searchApiResults = searchPromises.length > 0 ? await Promise.all(searchPromises) : [];
 
         // 步骤 5：处理并聚合结果
-        const googleSearchData = searchApiResults.find(res => res.results.length > 0 && res.results[0]?.source === SEARCH_SOURCE.GOOGLE) || {
+        const googleApiResult = searchApiResults.find(res => res.results[0]?.source === SEARCH_SOURCE.GOOGLE) || {
             results: [],
             time: 0,
             error: null
         };
-        const braveSearchData = searchApiResults.find(res => res.results.length > 0 && res.results[0]?.source === SEARCH_SOURCE.BRAVE) || {
+        const braveApiResult = searchApiResults.find(res => res.results[0]?.source === SEARCH_SOURCE.BRAVE) || {
             results: [],
             time: 0,
             error: null
         };
 
-        if (googleSearchData.error) console.warn(`[Google Search] 发现错误: ${googleSearchData.error}`);
-        if (braveSearchData.error) console.warn(`[Brave Search] 发现错误: ${braveSearchData.error}`);
+        if (googleApiResult.error) console.warn(`[Google Search] 发现错误: ${googleApiResult.error}`);
+        if (braveApiResult.error) console.warn(`[Brave Search] 发现错误: ${braveApiResult.error}`);
 
-        console.log(`[Google Search] Time: ${googleSearchData.time}ms, Results: ${googleSearchData.results.length}`);
-        console.log(`[Brave Search] Time: ${braveSearchData.time}ms, Results: ${braveSearchData.results.length}`);
+        console.log(`[Google Search] Time: ${googleApiResult.time}ms, Results: ${googleApiResult.results.length}`);
+        console.log(`[Brave Search] Time: ${braveApiResult.time}ms, Results: ${braveApiResult.results.length}`);
 
 
-        // === 步骤 5.5：AI 任务注册逻辑 ===
+        // === 步骤 5.5：AI 任务注册逻辑 (不变) ===
         if (shouldTriggerAI && aiTaskId) {
             // 确保 globalThis.__pendingAIReplies 存在
             globalThis.__pendingAIReplies = globalThis.__pendingAIReplies || new Map();
@@ -360,7 +367,6 @@ export default defineEventHandler(async (event) => {
                     if (!validGeminiApiKey) {
                         throw new Error("Gemini API 密钥不可用或配置无效。");
                     }
-                    // callGeminiChat 假定是从 Nuxt 配置中可用
                     const geminiResult = await callGeminiChat(aiPrompt, validGeminiApiKey);
                     const aiContent = geminiResult?.choices?.[0]?.message?.content || 'AI 未生成有效回复';
 
@@ -391,7 +397,7 @@ export default defineEventHandler(async (event) => {
         // === 结束 AI 任务注册逻辑 ===
 
         // 步骤 6：结果去重和RRF排序
-        const allResults = [...googleSearchData.results, ...braveSearchData.results];
+        const allResults = [...googleApiResult.results, ...braveApiResult.results];
         const uniqueResultsMap = new Map();
 
         allResults.forEach(result => {
@@ -399,16 +405,23 @@ export default defineEventHandler(async (event) => {
                 return; // 跳过没有链接的结果
             }
 
-            // --- 关键修改：规范化 URL ---
+            // --- 修正: 规范化 URL 逻辑 ---
             let normalizedLink;
             try {
-                // 尝试解码 URL，排除查询参数和哈希部分
+                // 1. 尝试解码 URL
                 const urlObj = new URL(result.link);
-                urlObj.search = ''; //清除查询参数
-                urlObj.hash = ''; //清除哈希
+                // 2. 清除查询参数和哈希
+                urlObj.search = '';
+                urlObj.hash = '';
                 normalizedLink = decodeURIComponent(urlObj.href);
+
+                // 3. 移除 www. 前缀
+                normalizedLink = normalizedLink.replace(/^https?:\/\/(www\.)/, (match, p1) => match.replace(p1, ''));
+
+                // 4. 确保尾部斜杠一致 (通常移除尾部斜杠)
+                normalizedLink = normalizedLink.replace(/\/$/, '');
+
             } catch (e) {
-                // 如果 URL 不合法，直接使用原始链接作为 fallback，但可能会导致去重失败
                 console.warn(`[De-duplication] Failed to normalize URL '${result.link}':`, e.message);
                 normalizedLink = result.link;
             }
@@ -436,16 +449,22 @@ export default defineEventHandler(async (event) => {
 
         const uniqueResults = Array.from(uniqueResultsMap.values()).sort((a, b) => (b.rrfScore || 0) - (a.rrfScore || 0));
 
-        // 步骤 7：构建聚合响应
-        const validApiTimes = [googleSearchData.time, braveSearchData.time].filter(t => t > 0);
+        // 步骤 7：构建聚合响应 (已修正)
+        const validApiTimes = [googleApiResult.time, braveApiResult.time].filter(t => t > 0);
         const averageSearchTime = validApiTimes.length > 0 ? validApiTimes.reduce((a, b) => a + b, 0) / validApiTimes.length : 0;
+
+        // 修正: 尝试从 Google 原始数据中提取总结果数
+        const googleRawData = googleApiResult?.originalRawData;
+        const trueTotalResults = googleRawData?.searchInformation?.totalResults || uniqueResults.length.toString();
+        const formattedTrueTotalResults = googleRawData?.searchInformation?.formattedTotalResults || `${uniqueResults.length} results`;
 
         const aggregatedResponse = {
             searchInformation: {
                 searchTime: averageSearchTime,
                 formattedSearchTime: `${(averageSearchTime / 1000).toFixed(2)} seconds`,
-                totalResults: uniqueResults.length.toString(),
-                formattedTotalResults: `${uniqueResults.length} results`
+                // 使用 Google 提供的原始总结果数
+                totalResults: trueTotalResults,
+                formattedTotalResults: formattedTrueTotalResults
             },
             items: uniqueResults.map(item => {
                 const clientItem = {
@@ -478,8 +497,8 @@ export default defineEventHandler(async (event) => {
             data: aggregatedResponse,
             totalResponseTime: Date.now() - handlerStartTime,
             apiTimings: {
-                [SEARCH_SOURCE.GOOGLE]: googleSearchData.time || null,
-                [SEARCH_SOURCE.BRAVE]: braveSearchData.time || null,
+                [SEARCH_SOURCE.GOOGLE]: googleApiResult.time || null,
+                [SEARCH_SOURCE.BRAVE]: braveApiResult.time || null,
             },
         };
 
